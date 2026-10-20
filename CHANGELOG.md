@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.47.1] - 2026-10-15
+
+### Fixed
+
+- **OpenCode 2.x plugin loads** instead of logging "Plugin must export a default definition" on every launch, and 1.x keeps working from the same file. For now, 2.x sessions report status only with OpenCode's background service off (`opencode service set disabled true`).
+
+## [2.47.0] - 2026-10-04
+
+### Added
+
+- **GitHub Copilot sessions** — You can now pick Copilot as a session's agent (`A`, Settings → Default agent, or `fleet wt --agent copilot`), with live status from Copilot's own hooks.
+
+## [2.46.0] - 2026-09-30
+
+### Highlights
+
+- **Your fleet, in numbers.** Press `i` (or `Ctrl+K` → "Your Stats") to see how many agents you ran at once, how fast you got back to a waiting one, your streaks and records, and what those tokens would have cost at API list prices. It's built only from fleet's own sessions and never leaves your machine, and a `◷ Your week` badge brings a weekly recap.
+
+### Added
+
+- **Your fleet, in numbers.** Press `i` (or `Ctrl+K` → "Your Stats") to see how many agents you ran at once, how fast you got back to a waiting one, your streaks and records, and what those tokens would have cost at API list prices. It's built only from fleet's own sessions and never leaves your machine, and a `◷ Your week` badge brings a weekly recap.
+
 ## [2.45.0] - 2026-09-23
 
 ### Added
@@ -730,7 +752,10 @@ Initial open-source release.
 - `/ship` release workflow — comment `/ship` on any issue or PR to release
 - Changelog check on PRs with `/no-changelog` escape hatch
 
-[Unreleased]: https://github.com/brizzai/fleet/compare/v2.45.0...HEAD
+[Unreleased]: https://github.com/brizzai/fleet/compare/v2.47.1...HEAD
+[2.47.1]: https://github.com/brizzai/fleet/releases/tag/v2.47.1
+[2.47.0]: https://github.com/brizzai/fleet/releases/tag/v2.47.0
+[2.46.0]: https://github.com/brizzai/fleet/releases/tag/v2.46.0
 [2.45.0]: https://github.com/brizzai/fleet/releases/tag/v2.45.0
 [2.44.0]: https://github.com/brizzai/fleet/releases/tag/v2.44.0
 [2.43.0]: https://github.com/brizzai/fleet/releases/tag/v2.43.0

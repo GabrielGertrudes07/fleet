@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/brizzai/fleet/internal/agent"
 	"github.com/brizzai/fleet/internal/claudeaccount"
 	"github.com/brizzai/fleet/internal/debuglog"
 )
@@ -179,6 +180,11 @@ type Config struct {
 	// don't nag. See GetReleaseNotesSeenVersion / MarkReleaseNotesSeen.
 	ReleaseNotesSeenVersion string `json:"release_notes_seen_version,omitempty"`
 
+	// StatsRecapSeenWeek is the Monday (YYYY-MM-DD, local) of the last weekly
+	// Stats recap the user has opened. The "Your week" badge shows only while
+	// the last full week has a recap and differs from this. Not a Settings row.
+	StatsRecapSeenWeek string `json:"stats_recap_seen_week,omitempty"`
+
 	// SeenTips records IDs of one-time (tipOnce) contextual tips the user has
 	// dismissed or that have timed out, so they never reappear. Recurring,
 	// condition-driven tips are not stored here — they reset in-memory.
@@ -210,19 +216,15 @@ type Config struct {
 // (e.g. theme onboarding) on launches that skip the consent prompt.
 func (c *Config) IsFirstRun() bool { return !c.loadedFromDisk }
 
-// GetDefaultAgent returns the default coding agent for new sessions ("claude",
-// "codex", or "opencode"). The stored value is normalized (trimmed +
+// GetDefaultAgent returns the default coding agent for new sessions (one of
+// agent.All). The stored value is normalized (trimmed +
 // lower-cased) so hand-edited configs like "Codex" or " codex " resolve
 // correctly instead of silently falling back.
 func (c *Config) GetDefaultAgent() string {
-	switch strings.TrimSpace(strings.ToLower(c.DefaultAgent)) {
-	case "codex":
-		return "codex"
-	case "opencode":
-		return "opencode"
-	default:
-		return "claude"
+	if a := strings.TrimSpace(strings.ToLower(c.DefaultAgent)); agent.Known(a) {
+		return a
 	}
+	return string(agent.Default)
 }
 
 // GetAccountStrategy returns the normalized Claude-account assignment strategy.
@@ -281,6 +283,24 @@ func (c *Config) SetAllowedAccounts(originKey string, emails []string) error {
 // viewed in the What's New reel ("" if never).
 func (c *Config) GetReleaseNotesSeenVersion() string {
 	return c.ReleaseNotesSeenVersion
+}
+
+// GetStatsRecapSeenWeek returns the Monday (YYYY-MM-DD) of the last weekly
+// recap the user opened ("" if never).
+func (c *Config) GetStatsRecapSeenWeek() string {
+	return c.StatsRecapSeenWeek
+}
+
+// SetStatsRecapSeenWeek records the recap week the user has opened and
+// persists it, so the "Your week" badge clears until the next week.
+func (c *Config) SetStatsRecapSeenWeek(week string) {
+	if week == "" || week == c.StatsRecapSeenWeek {
+		return
+	}
+	c.StatsRecapSeenWeek = week
+	if err := c.Save(); err != nil {
+		debuglog.Logger.Error("config: save stats recap seen week", "week", week, "err", err)
+	}
 }
 
 // MarkReleaseNotesSeen records the newest release version the user has viewed
