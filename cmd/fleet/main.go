@@ -210,10 +210,15 @@ func runTUI() {
 	}
 	defer restoreKeys()
 
+	// Keep stray fd 2 writes (ours or a forked child's) off the TUI's screen.
+	restoreStderr := debuglog.RedirectStderr()
+	defer restoreStderr()
+
 	if _, err := p.Run(); err != nil {
 		// os.Exit below skips deferred funcs, so restore key reporting first —
 		// otherwise extended-key mode stays off for other apps in this terminal.
 		restoreKeys()
+		restoreStderr()
 		// A Bubble Tea loop/cmd panic surfaces here as ErrProgramKilled rather
 		// than a Go panic, so log it — otherwise the exit is invisible in debug.log.
 		debuglog.Logger.Error("TUI exited with error", "err", err)
