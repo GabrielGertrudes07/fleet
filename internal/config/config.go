@@ -147,6 +147,7 @@ type Config struct {
 	ShowSlotBadges     *bool  `json:"show_slot_badges,omitempty"`     // "[N]" hotkey slot badge
 	ShowHeaderCounts   *bool  `json:"show_header_counts,omitempty"`   // session count on origin/checkout headers
 	ChevronStyle       string `json:"chevron_style,omitempty"`        // "triangle" (default ▾▸) or "plusminus" (−+)
+	SidebarStyle       string `json:"sidebar_style,omitempty"`        // "classic" (default) or "clean" (one line per single-checkout repo, branch inline)
 	SidebarDensity     string `json:"sidebar_density,omitempty"`      // "normal" (default) or "compact" (no inter-group gap)
 
 	// AnalyticsConsentSeen is true once the user has been shown the
@@ -690,6 +691,17 @@ func (c *Config) GetChevronStyle() string {
 		return "plusminus"
 	}
 	return "triangle"
+}
+
+// GetSidebarStyle returns the configured sidebar style — "classic" (default,
+// the full origin → checkout → session tree) or "clean" (a repo with a single
+// checkout folds that line into its header, headers show counts only when
+// collapsed, and the agent glyph shows only when agents are mixed).
+func (c *Config) GetSidebarStyle() string {
+	if c.SidebarStyle == "clean" {
+		return "clean"
+	}
+	return "classic"
 }
 
 // GetSidebarDensity returns the configured sidebar density — "normal" (default,
