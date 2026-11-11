@@ -10,6 +10,7 @@ import (
 	"github.com/brizzai/fleet/internal/area"
 	"github.com/brizzai/fleet/internal/git"
 	"github.com/brizzai/fleet/internal/session"
+	"github.com/brizzai/fleet/internal/stats"
 )
 
 // areaKey is the key that cycles the visible area (see internal/area).
@@ -193,7 +194,22 @@ func (h *Home) renderSidebarView(gitInfo map[string]*git.RepoInfo, width, height
 	if len(h.flatItems) == 0 && h.areaFiltering() && h.filterText == "" {
 		return DimStyle.Render("  No sessions in area " + h.areas.current)
 	}
-	return RenderSidebar(h.flatItems, h.sessions, gitInfo, h.slotBindings, h.cursor, h.viewOffset, width, height, !h.drawerHasFocus())
+	dash := renderSidebarDashboard(h.dashboardReport(), h.sessions, width, height)
+	list := RenderSidebar(h.flatItems, h.sessions, gitInfo, h.slotBindings, h.cursor, h.viewOffset, width, height-len(dash), !h.drawerHasFocus())
+	if len(dash) == 0 {
+		return list
+	}
+	list = ensureExactHeight(list, height-len(dash))
+	return list + "\n" + strings.Join(dash, "\n")
+}
+
+// dashboardReport is the report the sidebar footer draws, or nil when the
+// footer is switched off (hide_sidebar_dashboard) or no report has landed yet.
+func (h *Home) dashboardReport() *stats.Report {
+	if h.cfg != nil && h.cfg.HideSidebarDashboard {
+		return nil
+	}
+	return h.dashReport
 }
 
 // noteHiddenNewSession tells the user when a session just created (or adopted

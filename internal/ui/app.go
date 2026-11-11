@@ -320,6 +320,7 @@ type Home struct {
 	// statsScanning / statsReportGen / statsRecap* are Update-goroutine only.
 	statsStore       *stats.Store
 	statsView        *StatsView
+	dashReport       *stats.Report // last 7d report feeding the sidebar dashboard; Update goroutine only
 	recapView        *RecapView
 	statsScanning    bool
 	statsReportGen   map[stats.Range]int

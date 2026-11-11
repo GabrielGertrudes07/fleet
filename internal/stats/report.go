@@ -68,6 +68,8 @@ type Report struct {
 	FunFacts []string // already rendered, plain text, <= ~70 cols each
 	Repos    []RepoTime
 	Agents   []AgentTime
+	// Sessions ranks the window's sessions by agent time (then cost).
+	Sessions []SessionUse
 	Coverage Coverage
 }
 
@@ -102,6 +104,7 @@ type Day struct {
 	Date      time.Time // local midnight
 	Actions   int       // fleet actions + prompts recorded that day
 	AgentTime time.Duration
+	CostUSD   float64 // API-list-price equivalent of turns that started that day
 }
 
 type ActionCount struct {

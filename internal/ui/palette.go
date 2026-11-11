@@ -34,9 +34,9 @@ var (
 		Name:    "fleet-pink",
 		Bg:      lipgloss.Color("#17121f"),
 		Surface: lipgloss.Color("#241a2e"),
-		Border:  lipgloss.Color("#6a4d78"),
+		Border:  lipgloss.Color("#7d6390"),
 		Text:    lipgloss.Color("#f6eaf4"),
-		TextDim: lipgloss.Color("#857a8c"),
+		TextDim: lipgloss.Color("#9a90a3"),
 		Accent:  lipgloss.Color("#ff77c6"),
 		Blue:    lipgloss.Color("#7dcfff"),
 		Green:   lipgloss.Color("#8ad698"),
@@ -44,7 +44,7 @@ var (
 		Red:     lipgloss.Color("#e07685"),
 		Orange:  lipgloss.Color("#ffa05c"),
 		Purple:  lipgloss.Color("#bb9af7"),
-		Gray:    lipgloss.Color("#857a8c"),
+		Gray:    lipgloss.Color("#9a90a3"),
 	}
 
 	PaletteTokyoNight = Palette{

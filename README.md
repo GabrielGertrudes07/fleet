@@ -152,6 +152,8 @@ A session belongs to the area whose longest `paths` prefix contains its director
 
 Prefer a plainer list? Set `"sidebar_style": "clean"` in `~/.config/fleet/config.json` (or **`S`** → Appearance → Style). A repo with a single checkout loses its middle row: the branch (`main*` when dirty) and PR badge sit on the repo's own line in dim, and `w`, `b`, `p`, `Ctrl+P` and the `.` menu act on it from there. Headers show their count and status dot only while collapsed, and the agent glyph appears only when you mix agents. The default, `"classic"`, is unchanged.
 
+A usage footer under the list shows the last 7 days of spend (API-list-price equivalent), your top sessions by agent time and spend per account, from the same local data as Stats (**`i`**). It hides itself on short terminals; set `"hide_sidebar_dashboard": true` to turn it off.
+
 ### Notifications — know when a session needs you
 
 Turn on **Notifications** in Settings (or add it to `~/.config/fleet/config.json`) and fleet raises a system notification when a session moves from working to **waiting** (a permission or question), **finished** or **error** (including a usage limit):

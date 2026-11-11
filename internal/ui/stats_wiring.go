@@ -40,6 +40,8 @@ const (
 type (
 	// statsScanKickMsg starts the deferred startup scan.
 	statsScanKickMsg struct{}
+	// statsDashTickMsg recomputes the sidebar dashboard's 7d report.
+	statsDashTickMsg struct{}
 	// statsProgressMsg is one throttled scan progress report.
 	statsProgressMsg struct{ p stats.Progress }
 	// statsScanDoneMsg ends a scan; last is the final progress it reported.
@@ -83,6 +85,11 @@ func openStatsStoreOrNil() *stats.Store {
 // statsKickCmd schedules the startup scan.
 func statsKickCmd() tea.Cmd {
 	return tea.Tick(statsScanStartupDelay, func(time.Time) tea.Msg { return statsScanKickMsg{} })
+}
+
+// statsDashTickCmd schedules the next sidebar-dashboard refresh.
+func statsDashTickCmd() tea.Cmd {
+	return tea.Tick(statsDashRefresh, func(time.Time) tea.Msg { return statsDashTickMsg{} })
 }
 
 // recordStats counts one fleet action. Safe from any goroutine; a no-op with no
@@ -335,7 +342,10 @@ func (h *Home) showRecap(r stats.Recap) {
 func (h *Home) handleStatsMsg(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case statsScanKickMsg:
-		return h.startStatsScan(), true
+		return tea.Batch(h.startStatsScan(), h.statsReportCmd(stats.Range7d), statsDashTickCmd()), true
+
+	case statsDashTickMsg:
+		return tea.Batch(h.statsReportCmd(stats.Range7d), statsDashTickCmd()), true
 
 	case statsProgressMsg:
 		h.statsView.SetProgress(msg.p)
@@ -349,7 +359,7 @@ func (h *Home) handleStatsMsg(msg tea.Msg) (tea.Cmd, bool) {
 		final := msg.last
 		final.Finished = true
 		h.statsView.SetProgress(final)
-		cmds := []tea.Cmd{h.statsRecapCmd(false)}
+		cmds := []tea.Cmd{h.statsRecapCmd(false), h.statsReportCmd(stats.Range7d)}
 		if h.statsView.IsVisible() {
 			cmds = append(cmds, h.statsReportCmd(h.statsView.Range()))
 		}
@@ -362,6 +372,11 @@ func (h *Home) handleStatsMsg(msg tea.Msg) (tea.Cmd, bool) {
 		if msg.err != nil {
 			debuglog.Logger.Warn("stats: report failed", "range", msg.rng.Label(), "err", msg.err)
 			return nil, true
+		}
+		if msg.rng == stats.Range7d {
+			rep := msg.report
+			h.dashReport = &rep
+			h.sidebarDirty = true
 		}
 		h.statsView.SetReport(msg.report)
 		return nil, true

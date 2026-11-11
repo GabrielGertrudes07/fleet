@@ -146,15 +146,16 @@ type Config struct {
 	// AccountUsageStyle picks the shape of the top-right per-account quota
 	// readout: "split", "grouped", or "off". Read via GetAccountUsageStyle,
 	// which migrates the legacy ShowAccountUsage bool when this is unset.
-	AccountUsageStyle  string `json:"account_usage_style,omitempty"`
-	ShowStatusPills    *bool  `json:"show_status_pills,omitempty"`    // header "2● 1◐" status summary
-	ShowPRBadges       *bool  `json:"show_pr_badges,omitempty"`       // "#123 ✓" PR badge on checkout headers
-	ShowDirtyIndicator *bool  `json:"show_dirty_indicator,omitempty"` // "*" dirty-worktree marker
-	ShowSlotBadges     *bool  `json:"show_slot_badges,omitempty"`     // "[N]" hotkey slot badge
-	ShowHeaderCounts   *bool  `json:"show_header_counts,omitempty"`   // session count on origin/checkout headers
-	ChevronStyle       string `json:"chevron_style,omitempty"`        // "triangle" (default ▾▸) or "plusminus" (−+)
-	SidebarStyle       string `json:"sidebar_style,omitempty"`        // "classic" (default) or "clean" (one line per single-checkout repo, branch inline)
-	SidebarDensity     string `json:"sidebar_density,omitempty"`      // "normal" (default) or "compact" (no inter-group gap)
+	AccountUsageStyle    string `json:"account_usage_style,omitempty"`
+	ShowStatusPills      *bool  `json:"show_status_pills,omitempty"`      // header "2● 1◐" status summary
+	ShowPRBadges         *bool  `json:"show_pr_badges,omitempty"`         // "#123 ✓" PR badge on checkout headers
+	ShowDirtyIndicator   *bool  `json:"show_dirty_indicator,omitempty"`   // "*" dirty-worktree marker
+	ShowSlotBadges       *bool  `json:"show_slot_badges,omitempty"`       // "[N]" hotkey slot badge
+	ShowHeaderCounts     *bool  `json:"show_header_counts,omitempty"`     // session count on origin/checkout headers
+	ChevronStyle         string `json:"chevron_style,omitempty"`          // "triangle" (default ▾▸) or "plusminus" (−+)
+	HideSidebarDashboard bool   `json:"hide_sidebar_dashboard,omitempty"` // true removes the usage footer under the session list
+	SidebarStyle         string `json:"sidebar_style,omitempty"`          // "classic" (default) or "clean" (one line per single-checkout repo, branch inline)
+	SidebarDensity       string `json:"sidebar_density,omitempty"`        // "normal" (default) or "compact" (no inter-group gap)
 
 	// AnalyticsConsentSeen is true once the user has been shown the
 	// first-launch consent prompt and answered it (either way). When false,

@@ -116,9 +116,16 @@ func (s *Store) Report(r Range, now time.Time) (Report, error) {
 		dayAgent[dayKey(day)] += ms
 	})
 	today := midnight(now)
+	var heatTurns []turnData
+	for _, t := range d.turns {
+		if t.start >= hs.UnixMilli() {
+			heatTurns = append(heatTurns, t)
+		}
+	}
+	dayCost := dayCosts(heatTurns)
 	for day := hs; !day.After(today); day = day.AddDate(0, 0, 1) {
 		k := dayKey(day)
-		rep.Days = append(rep.Days, Day{Date: day, Actions: dayActs[k], AgentTime: time.Duration(dayAgent[k]) * time.Millisecond})
+		rep.Days = append(rep.Days, Day{Date: day, Actions: dayActs[k], AgentTime: time.Duration(dayAgent[k]) * time.Millisecond, CostUSD: dayCost[k]})
 	}
 	rep.Streak, rep.BestStreak = streaks(rep.Days)
 
@@ -127,6 +134,7 @@ func (s *Store) Report(r Range, now time.Time) (Report, error) {
 
 	active := activeSessions(d, per, fromMs, toMs)
 	rep.Repos, rep.Agents = breakdowns(d, per, active)
+	rep.Sessions = sessionUsage(d, per, turnsIn)
 	rep.Records = records(d, turnsIn, sw, dayActs, from, to)
 	rep.FunFacts = funFacts(d, &rep, per, replies, counts, turnsIn, fromMs)
 
