@@ -370,6 +370,14 @@ type RenameDialog struct {
 	width      int
 	height     int
 	sessionID  string
+	// mode picks what the dialog edits: "" = the title (rename), "note" or "tag"
+	// = the user's organization metadata, where an empty value clears it.
+	mode string
+}
+
+// sessionMetaMsg is sent when the user confirms a note or tag.
+type sessionMetaMsg struct {
+	id, kind, value string
 }
 
 // NewRenameDialog creates a new rename dialog.
@@ -387,11 +395,24 @@ func NewRenameDialog() *RenameDialog {
 
 // Show makes the dialog visible, pre-filled with the current title.
 func (d *RenameDialog) Show(sessionID, currentTitle string) {
+	d.mode = ""
+	d.titleInput.Placeholder = "session name"
 	d.visible = true
 	d.sessionID = sessionID
 	d.titleInput.SetValue(currentTitle)
 	d.titleInput.Focus()
 	d.titleInput.CursorEnd()
+}
+
+// ShowMeta opens the dialog to edit a session's "note" or "tag".
+func (d *RenameDialog) ShowMeta(sessionID, kind, current string) {
+	d.Show(sessionID, current)
+	d.mode = kind
+	if kind == "tag" {
+		d.titleInput.Placeholder = "tag, e.g. folha"
+	} else {
+		d.titleInput.Placeholder = "e.g. waiting for the deploy"
+	}
 }
 
 func (d *RenameDialog) Hide()           { d.visible = false; d.titleInput.Blur() }
@@ -416,6 +437,11 @@ func (d *RenameDialog) Update(msg tea.Msg) (*RenameDialog, tea.Cmd) {
 		switch msg.String() {
 		case "enter":
 			newTitle := strings.TrimSpace(d.titleInput.Value())
+			if d.mode != "" {
+				id, kind := d.sessionID, d.mode
+				d.Hide()
+				return d, func() tea.Msg { return sessionMetaMsg{id: id, kind: kind, value: newTitle} }
+			}
 			if newTitle == "" {
 				return d, nil
 			}
@@ -439,13 +465,20 @@ func (d *RenameDialog) Update(msg tea.Msg) (*RenameDialog, tea.Cmd) {
 func (d *RenameDialog) View() string {
 	var b strings.Builder
 
-	b.WriteString(TitleStyle.Render("Rename Session"))
+	heading, label, hint := "Rename Session", "New title:", "enter: rename • esc: cancel"
+	switch d.mode {
+	case "note":
+		heading, label, hint = "Session note", "Note (empty clears):", "enter: save • esc: cancel"
+	case "tag":
+		heading, label, hint = "Session tag", "Tag (empty clears):", "enter: save • esc: cancel"
+	}
+	b.WriteString(TitleStyle.Render(heading))
 	b.WriteString("\n\n")
-	b.WriteString(DimStyle.Render("New title:"))
+	b.WriteString(DimStyle.Render(label))
 	b.WriteString("\n")
 	b.WriteString(d.titleInput.View())
 	b.WriteString("\n\n")
-	b.WriteString(DimStyle.Render("enter: rename • esc: cancel"))
+	b.WriteString(DimStyle.Render(hint))
 
 	dialogWidth := d.width - 4
 	if dialogWidth > 64 {

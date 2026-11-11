@@ -33,6 +33,9 @@ type SidebarItem struct {
 	// InboxOrigin (session row) is set when the row was lifted into the inbox:
 	// it sits outside its origin group, so the origin name rides on the title.
 	InboxOrigin string
+	// Tag and Note are the user's own organization data for a session row,
+	// stamped by Home (see stampMeta); the note shows only while muted.
+	Tag, Note string
 	// IsFolderHeader marks a folder-group header (see folders.go): a row above
 	// several origins that share a directory under an area. IsRepoHeader stays
 	// true on it so "not a session" guards keep working.
@@ -814,6 +817,9 @@ func renderSessionItem(item SidebarItem, width int, selected bool, slot int) str
 	if item.InboxOrigin != "" {
 		title = item.InboxOrigin + " › " + title
 	}
+	if item.Tag != "" {
+		title = "#" + item.Tag + " " + title
+	}
 
 	// Snooze suffix. Only a session's OWN snooze renders a countdown — under a
 	// snoozed group the header owns the clock, so N children don't repeat the
@@ -823,6 +829,9 @@ func renderSessionItem(item SidebarItem, width int, selected bool, slot int) str
 		snoozeRaw = "  " + SnoozeGlyph
 		if item.Snooze.OwnTimer {
 			snoozeRaw += " " + formatSnoozeRemaining(item.Snooze.Until, time.Now())
+		}
+		if item.Note != "" {
+			snoozeRaw += " · " + item.Note
 		}
 	}
 
@@ -901,8 +910,12 @@ func renderSessionItem(item SidebarItem, width int, selected bool, slot int) str
 			// width-truncated, so no room for a suffix).
 			rendered += "  " + DimStyle.Render("suspended · enter to resume")
 		case item.Snooze.Muted && item.Snooze.OwnTimer:
-			rendered += "  " + DimStyle.Render(fmt.Sprintf("%s snoozed %s · z to wake",
-				SnoozeGlyph, formatSnoozeRemaining(item.Snooze.Until, time.Now())))
+			note := ""
+			if item.Note != "" {
+				note = " · " + item.Note
+			}
+			rendered += "  " + DimStyle.Render(fmt.Sprintf("%s snoozed %s%s · z to wake",
+				SnoozeGlyph, formatSnoozeRemaining(item.Snooze.Until, time.Now()), note))
 		case item.Snooze.Muted:
 			rendered += "  " + DimStyle.Render(SnoozeGlyph+" sleeping · group snoozed")
 		}

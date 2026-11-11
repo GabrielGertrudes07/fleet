@@ -258,6 +258,21 @@ func (s *StateDB) migrate() error {
 		return err
 	}
 
+	// Organization metadata the user attaches to a session: a free tag (subject
+	// grouping/filter) and a note ("waiting on X" — shown next to a snooze).
+	// A separate table so SessionRow and the sessions schema stay untouched.
+	_, err = s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS session_meta (
+			session_id TEXT PRIMARY KEY,
+			tag        TEXT NOT NULL DEFAULT '',
+			note       TEXT NOT NULL DEFAULT ''
+		)
+	`)
+	if err != nil {
+		debuglog.Logger.Error("migration failed: create session_meta table", "error", err)
+		return err
+	}
+
 	// Per-repo PR cache: survives fleet restarts so we don't re-fire `gh` for
 	// every repo on launch. The worker carries pr_json forward (subject to a
 	// branch-match check) until the TTL gate decides to refresh.
@@ -734,6 +749,48 @@ func (s *StateDB) LoadSnoozedGroups() (map[string]time.Time, error) {
 		out[key] = unixToTime(until)
 	}
 	return out, rows.Err()
+}
+
+// Meta is the user's own organization data for one session.
+type Meta struct {
+	Tag  string
+	Note string
+}
+
+// LoadSessionMeta returns every session's tag/note, keyed by session id.
+func (s *StateDB) LoadSessionMeta() (map[string]Meta, error) {
+	rows, err := s.db.Query("SELECT session_id, tag, note FROM session_meta")
+	if err != nil {
+		debuglog.Logger.Error("failed to load session meta", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]Meta)
+	for rows.Next() {
+		var id string
+		var m Meta
+		if err := rows.Scan(&id, &m.Tag, &m.Note); err != nil {
+			return nil, err
+		}
+		out[id] = m
+	}
+	return out, rows.Err()
+}
+
+// SetSessionMeta stores a session's tag and note; both empty removes the row.
+func (s *StateDB) SetSessionMeta(id string, m Meta) error {
+	var err error
+	if m.Tag == "" && m.Note == "" {
+		_, err = s.db.Exec("DELETE FROM session_meta WHERE session_id = ?", id)
+	} else {
+		_, err = s.db.Exec(
+			"INSERT OR REPLACE INTO session_meta (session_id, tag, note) VALUES (?, ?, ?)",
+			id, m.Tag, m.Note)
+	}
+	if err != nil {
+		debuglog.Logger.Error("failed to set session meta", "id", id, "error", err)
+	}
+	return err
 }
 
 // SavePRCacheRow upserts a single repo's PR-refresh state. Called per-repo

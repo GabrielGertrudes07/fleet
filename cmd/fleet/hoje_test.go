@@ -22,10 +22,14 @@ func TestPrintHojeSectionsAndOrder(t *testing.T) {
 	merged.PR = &github.PR{Number: 7, State: "MERGED"}
 
 	var buf bytes.Buffer
-	printHoje(&buf, []*control.Observation{waiting, done, merged}, 2)
+	meta := map[string]session.Meta{
+		waiting.Row.ID: {Tag: "folha", Note: "espero deploy"},
+		done.Row.ID:    {Tag: "folha"},
+	}
+	printHoje(&buf, []*control.Observation{waiting, done, merged}, 2, meta)
 	out := buf.String()
 
-	for _, want := range []string{"Esperando você (1)", "Terminadas (1)", "› Publicado em produção", "PR mergeado: pode encerrar (1)", "#7(merged)", "2 suspensa(s)"} {
+	for _, want := range []string{"Esperando você (1)", "Terminadas (1)", "› Publicado em produção", "PR mergeado: pode encerrar (1)", "#7(merged)", "2 suspensa(s)", "#folha  1/2 prontas · 1 esperando · 0 rodando", "— espero deploy"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("saída sem %q:\n%s", want, out)
 		}
@@ -40,7 +44,7 @@ func TestPrintHojeSectionsAndOrder(t *testing.T) {
 
 func TestPrintHojeNothingPending(t *testing.T) {
 	var buf bytes.Buffer
-	printHoje(&buf, []*control.Observation{hojeObs("dddddddd", "ociosa", session.StatusIdle)}, 0)
+	printHoje(&buf, []*control.Observation{hojeObs("dddddddd", "ociosa", session.StatusIdle)}, 0, nil)
 	if !strings.Contains(buf.String(), "Nada pendente.") {
 		t.Errorf("esperava 'Nada pendente.', veio:\n%s", buf.String())
 	}

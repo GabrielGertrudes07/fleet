@@ -389,6 +389,8 @@ type Home struct {
 	// idle-suspend sweep, which lives there because it probes sysctl, expiry is
 	// clock arithmetic and a tiny SQLite write.)
 	groupSnooze map[string]time.Time
+	// meta holds each session's user tag and note (session_meta table).
+	meta map[string]session.Meta
 	// snoozeMuted is the resolved "is this session attention-muted" answer for
 	// every session, recomputed in rebuildFlatItems. Exists so fleet-wide
 	// consumers (statusCountsLine) consult the same resolution the sidebar rows
@@ -648,6 +650,7 @@ func NewHome(storage *session.StateDB, cfg *config.Config, version string, ident
 		sessionByID:            make(map[string]*session.Session),
 		repoExpanded:           make(map[string]bool),
 		groupSnooze:            make(map[string]time.Time),
+		meta:                   make(map[string]session.Meta),
 		lastTmuxStatusBar:      make(map[string]string),
 		slotBindings:           make(map[int]string),
 		lastSlotTapSlot:        -1,
@@ -1538,6 +1541,30 @@ func (h *Home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return h, nil
 
+	case sessionMetaMsg:
+		if h.meta == nil {
+			h.meta = make(map[string]session.Meta)
+		}
+		m := h.meta[msg.id]
+		if msg.kind == "tag" {
+			m.Tag = strings.TrimPrefix(strings.ToLower(strings.Fields(msg.value + " x")[0]), "#")
+			if msg.value == "" {
+				m.Tag = ""
+			}
+		} else {
+			m.Note = msg.value
+		}
+		if m == (session.Meta{}) {
+			delete(h.meta, msg.id)
+		} else {
+			h.meta[msg.id] = m
+		}
+		if err := h.storage.SetSessionMeta(msg.id, m); err != nil {
+			debuglog.Logger.Error("storage: SetSessionMeta", "id", msg.id, "err", err)
+		}
+		h.rebuildFlatItems()
+		return h, nil
+
 	case sessionRenameMsg:
 		if s, ok := h.sessionByID[msg.id]; ok {
 			// Manual rename on a previously auto-named session = signal that
@@ -2258,6 +2285,9 @@ func (h *Home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				h.repoExpanded[key] = false
 			}
 		}
+		if m, err := h.storage.LoadSessionMeta(); err == nil && m != nil {
+			h.meta = m
+		}
 		// Restore group snoozes, dropping any that lapsed while fleet was
 		// closed so the very first frame is already correct (waiting for the
 		// sweep would paint a stale dim group for up to one interval).
@@ -2801,6 +2831,7 @@ func (h *Home) renderBody() string {
 	}
 
 	h.stampAccountBadges(h.flatItems)
+	h.stampMeta(h.flatItems)
 
 	// Status counts ride the Sessions panel's top-right border (inset into
 	// the title border, after the "Sessions" label). The top app bar no
@@ -3468,6 +3499,10 @@ func (h *Home) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		h.markUnreadSelected()
 		return h, nil
+	case "N":
+		return h, h.metaSelected("note")
+	case "T":
+		return h, h.metaSelected("tag")
 	case "e":
 		if s := h.selectedSession(); s != nil {
 			h.logAction("open editor", fmt.Sprintf("%q at %s", h.cfg.GetEditor(), s.ProjectPath), true)
@@ -6533,6 +6568,23 @@ func (h *Home) jumpToNextAttentionPR() {
 	h.syncViewport()
 }
 
+// metaSelected opens the note/tag dialog for the session under the cursor.
+func (h *Home) metaSelected(kind string) tea.Cmd {
+	if h.cursor < 0 || h.cursor >= len(h.flatItems) || h.flatItems[h.cursor].IsRepoHeader {
+		return nil
+	}
+	s := h.flatItems[h.cursor].Session
+	if s == nil {
+		return nil
+	}
+	cur := h.meta[s.ID].Note
+	if kind == "tag" {
+		cur = h.meta[s.ID].Tag
+	}
+	h.renameDialog.ShowMeta(s.ID, kind, cur)
+	return nil
+}
+
 func (h *Home) renameSelected() tea.Cmd {
 	if h.cursor < 0 || h.cursor >= len(h.flatItems) || h.flatItems[h.cursor].IsRepoHeader {
 		return nil
@@ -8945,7 +8997,9 @@ func (h *Home) rebuildFlatItems() {
 	originOf, isWorktreeOf := h.originResolvers()
 	now := time.Now()
 	sessions, pending, pinned := h.areaScoped()
-	h.flatItems = AddInbox(GroupFolders(BuildFlatItems(sessions, pending, h.repoExpanded, h.filterText, pinned, h.failedWorktreeRemovals, h.groupSnooze, now, originOf, isWorktreeOf), h.areaFolderOf(), h.repoExpanded), ShowInbox)
+	filter := h.filterText
+	sessions, filter = h.filterByTag(sessions, filter)
+	h.flatItems = AddInbox(GroupFolders(BuildFlatItems(sessions, pending, h.repoExpanded, filter, pinned, h.failedWorktreeRemovals, h.groupSnooze, now, originOf, isWorktreeOf), h.areaFolderOf(), h.repoExpanded), ShowInbox)
 
 	// Resolve the attention-mute for EVERY session, not just the visible ones,
 	// so callers that count the whole fleet (statusCountsLine) read the same
@@ -9732,6 +9786,8 @@ func (h *Home) buildPaletteItems() []PaletteItem {
 		{Kind: PaletteKindCommand, ID: "delete", Name: "Delete (session / repo / worktree)", Shortcut: "d"},
 		{Kind: PaletteKindCommand, ID: "restart", Name: "Restart Session", Shortcut: "r"},
 		{Kind: PaletteKindCommand, ID: "rename", Name: "Rename Session", Shortcut: "R"},
+		{Kind: PaletteKindCommand, ID: "note", Name: "Session Note", Shortcut: "N"},
+		{Kind: PaletteKindCommand, ID: "tag", Name: "Session Tag", Shortcut: "T"},
 		{Kind: PaletteKindCommand, ID: "editor", Name: "Open in Editor", Shortcut: "e"},
 		{Kind: PaletteKindCommand, ID: "open_pr", Name: "Open PR", Shortcut: "p"},
 		{Kind: PaletteKindCommand, ID: "copy_pr_link", Name: "Copy PR Link", Shortcut: "⌃P"},
@@ -10021,6 +10077,10 @@ func (h *Home) dispatchCommand(id string) (tea.Model, tea.Cmd) {
 		return h, h.suspendIdleNow()
 	case "rename":
 		return h, h.renameSelected()
+	case "note":
+		return h, h.metaSelected("note")
+	case "tag":
+		return h, h.metaSelected("tag")
 	case "editor":
 		if s := h.selectedSession(); s != nil {
 			h.logAction("open editor", fmt.Sprintf("%q at %s", h.cfg.GetEditor(), s.ProjectPath), true)

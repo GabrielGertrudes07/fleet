@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/brizzai/fleet/internal/session"
 )
@@ -138,4 +139,32 @@ func pruneEmptyHeaders(items []SidebarItem) []SidebarItem {
 		norm = append(norm, it)
 	}
 	return norm
+}
+
+// stampMeta copies each session's user tag and note onto its sidebar row.
+func (h *Home) stampMeta(items []SidebarItem) {
+	for i := range items {
+		if items[i].Session == nil {
+			continue
+		}
+		m := h.meta[items[i].Session.ID]
+		items[i].Tag, items[i].Note = m.Tag, m.Note
+	}
+}
+
+// filterByTag turns a "/#tag" filter into a session subset: the filter text is
+// matched against titles by BuildFlatItems, which knows nothing of tags, so a
+// leading "#" is resolved here and the title filter cleared.
+func (h *Home) filterByTag(sessions []*session.Session, filter string) ([]*session.Session, string) {
+	if !strings.HasPrefix(filter, "#") {
+		return sessions, filter
+	}
+	want := strings.ToLower(strings.TrimPrefix(filter, "#"))
+	out := make([]*session.Session, 0, len(sessions))
+	for _, s := range sessions {
+		if strings.Contains(h.meta[s.ID].Tag, want) {
+			out = append(out, s)
+		}
+	}
+	return out, ""
 }
