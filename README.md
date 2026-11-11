@@ -152,6 +152,26 @@ A session belongs to the area whose longest `paths` prefix contains its director
 
 Prefer a plainer list? Set `"sidebar_style": "clean"` in `~/.config/fleet/config.json` (or **`S`** → Appearance → Style). A repo with a single checkout loses its middle row: the branch (`main*` when dirty) and PR badge sit on the repo's own line in dim, and `w`, `b`, `p`, `Ctrl+P` and the `.` menu act on it from there. Headers show their count and status dot only while collapsed, and the agent glyph appears only when you mix agents. The default, `"classic"`, is unchanged.
 
+### Notifications — know when a session needs you
+
+Turn on **Notifications** in Settings (or add it to `~/.config/fleet/config.json`) and fleet raises a system notification when a session moves from working to **waiting** (a permission or question), **finished** or **error** (including a usage limit):
+
+```json
+"notifications": { "enabled": true, "on": ["waiting", "finished", "error"], "sound": true }
+```
+
+The title names the session (`Needs you · Fix login`), the subtitle gives `area · account · repo/branch`, and the message is what it is asking (`Permission: Bash(git push origin main)`), the start of its last reply, or the error line. Sessions hidden by the area filter still notify; the one you are attached to does not; two fleet windows on the same state notify once. macOS uses `terminal-notifier` when installed (click to focus your terminal, one live notification per session) and falls back to `osascript`; Linux uses `notify-send`. Run `fleet notify test` to check which mechanism works. Off by default.
+
+### Notifications — know when a session needs you
+
+Turn on **Notifications** in Settings (or add it to `~/.config/fleet/config.json`) and fleet raises a system notification when a session moves from working to **waiting** (a permission or question), **finished** or **error** (including a usage limit):
+
+```json
+"notifications": { "enabled": true, "on": ["waiting", "finished", "error"], "sound": true }
+```
+
+The title names the session (`Needs you · Fix login`), the subtitle gives `area · account · repo/branch`, and the message is what it is asking (`Permission: Bash(git push origin main)`), the start of its last reply, or the error line. Sessions hidden by the area filter still notify; the one you are attached to does not; two fleet windows on the same state notify once. macOS uses `terminal-notifier` when installed (click to focus your terminal, one live notification per session) and falls back to `osascript`; Linux uses `notify-send`. Run `fleet notify test` to check which mechanism works. Off by default.
+
 ### And more
 
 - **Session resume** — restart with **`r`**, the agent picks up exactly where it left off (`claude --resume` / `codex resume` / `opencode --session` / `copilot --session-id`)

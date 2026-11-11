@@ -128,6 +128,12 @@ type Config struct {
 	// the feature did not exist. See internal/area.
 	Areas []Area `json:"areas,omitempty"`
 
+	// Notifications drives the system notification sent when a session stops or
+	// needs you. A real struct field (not an unknown key) so a Save from the
+	// Settings dialog keeps it. Nil means the defaults: off. Read via
+	// IsNotificationsEnabled / NotifyOn / IsNotifySound.
+	Notifications *NotificationsConfig `json:"notifications,omitempty"`
+
 	// Sidebar display toggles. All default to true (on) via the *bool nil
 	// pattern, so an unconfigured fleet renders the full vocabulary. Each is
 	// surfaced in the Appearance category of the Settings dialog and drives a
@@ -196,6 +202,59 @@ type Config struct {
 	// in Load, re-merged in Save. Unexported, so the struct path never
 	// serializes it; it is re-injected manually by marshal.
 	unknownKeys map[string]json.RawMessage
+}
+
+// NotificationsConfig is the "notifications" object in config.json.
+type NotificationsConfig struct {
+	// Enabled turns system notifications on. Default false: fleet never raises
+	// a notification the user did not ask for.
+	Enabled bool `json:"enabled"`
+	// On lists the states that notify: "waiting", "finished", "error". Nil or
+	// empty means all three; unknown entries are ignored.
+	On []string `json:"on,omitempty"`
+	// Sound plays a sound with the notification. Default true.
+	Sound *bool `json:"sound,omitempty"`
+}
+
+// Notification states accepted in NotificationsConfig.On.
+var NotifyStates = []string{"waiting", "finished", "error"}
+
+// IsNotificationsEnabled reports whether system notifications are on (default: false).
+func (c *Config) IsNotificationsEnabled() bool {
+	return c.Notifications != nil && c.Notifications.Enabled
+}
+
+// SetNotificationsEnabled turns notifications on or off, keeping the rest of the object.
+func (c *Config) SetNotificationsEnabled(v bool) {
+	if c.Notifications == nil {
+		c.Notifications = &NotificationsConfig{}
+	}
+	c.Notifications.Enabled = v
+}
+
+// NotifyOn returns the states that notify, in NotifyStates order. An unset or
+// empty list (or one with no valid entry) means all of them.
+func (c *Config) NotifyOn() []string {
+	if c.Notifications != nil {
+		var out []string
+		for _, st := range NotifyStates {
+			for _, v := range c.Notifications.On {
+				if v == st {
+					out = append(out, st)
+					break
+				}
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return append([]string(nil), NotifyStates...)
+}
+
+// IsNotifySound reports whether notifications play a sound (default: true).
+func (c *Config) IsNotifySound() bool {
+	return c.Notifications == nil || boolDefaultTrue(c.Notifications.Sound)
 }
 
 // Area is one named slice of the sidebar, selected by directory.
