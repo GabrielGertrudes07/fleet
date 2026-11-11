@@ -1019,7 +1019,9 @@ func prBadgeText(pr *github.PR) string {
 	}
 	badge := fmt.Sprintf("#%d", pr.Number)
 	if pr.State == "MERGED" {
-		return badge + " ⇡"
+		// Merged = the branch is done: say so, so finished work is spotted at a
+		// glance and the session/worktree can be closed (d).
+		return badge + " ⇡ encerrar"
 	}
 	if pr.IsDraft {
 		// Draft = work-in-progress: dotted-circle prefix marks it, CI failure
