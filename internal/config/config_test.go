@@ -567,6 +567,8 @@ func TestGetSidebarStyle(t *testing.T) {
 		if got := (&Config{SidebarStyle: tc.in}).GetSidebarStyle(); got != tc.want {
 			t.Errorf("GetSidebarStyle(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
 
 func TestNotificationsConfig(t *testing.T) {
 	yes, no := true, false
