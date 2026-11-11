@@ -462,7 +462,8 @@ type Home struct {
 	filterInput  textinput.Model
 	filterActive bool
 	filterText   string
-	areas        areaState // config-defined sidebar areas (internal/area); inert when none are configured
+	notify       notifyState // system notifications on waiting/finished/error (internal/notify)
+	areas        areaState   // config-defined sidebar areas (internal/area); inert when none are configured
 
 	// Terminal drawer (shells). Shells are non-agent terminals scoped to a
 	// repo/worktree, shown in the drawer (never the sidebar). The drawer is
@@ -719,6 +720,7 @@ func NewHome(storage *session.StateDB, cfg *config.Config, version string, ident
 		startTime:              time.Now(),
 	}
 	h.initAreas()
+	h.initNotify()
 	if firstRunTraceShouldRecord() {
 		h.firstRun = newFirstRunTrace(h.startTime)
 	}
@@ -7549,6 +7551,7 @@ func (h *Home) updateAndPersistStatus(s *session.Session) bool {
 	}
 	s.UpdateStatus()
 	newStatus := s.GetStatus()
+	h.maybeNotify(s, oldStatus, newStatus)
 	if oldStatus != newStatus {
 		// The same check for a death the liveness probe above didn't see yet: too
 		// late to spare the dump, still in time to spare the row.
