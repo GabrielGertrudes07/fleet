@@ -690,6 +690,17 @@ func buildSettingsCategories() []settingsCategory {
 				(*config.Config).GetOriginDeleteRemovesWorktrees,
 				func(c *config.Config, v bool) { c.OriginDeleteRemovesWorktrees = &v }, false)),
 			{
+				// System notification when a session needs you, finishes or
+				// errors. Which states, and the sound, live in config.json
+				// ("notifications"); this row is the master switch.
+				label:  "Notifications",
+				value:  func(c *config.Config) string { return onOff(c.IsNotificationsEnabled()) },
+				valueW: func() int { return maxStrW([]string{"On", "Off"}) },
+				cycle: func(d *SettingsDialog, _ int) {
+					d.cfg.SetNotificationsEnabled(!d.cfg.IsNotificationsEnabled())
+				},
+			},
+			{
 				label:  "Enter mode",
 				value:  func(c *config.Config) string { return c.GetEnterMode() },
 				valueW: func() int { return maxStrW(enterModeSet) },

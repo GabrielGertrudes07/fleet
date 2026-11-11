@@ -560,3 +560,43 @@ func TestTicketStartStateHonoursTheLegacyKey(t *testing.T) {
 		})
 	}
 }
+
+func TestNotificationsConfig(t *testing.T) {
+	yes, no := true, false
+	tests := []struct {
+		name    string
+		cfg     *NotificationsConfig
+		enabled bool
+		on      []string
+		sound   bool
+	}{
+		{"unset", nil, false, NotifyStates, true},
+		{"enabled defaults", &NotificationsConfig{Enabled: true}, true, NotifyStates, true},
+		{"subset in canonical order", &NotificationsConfig{Enabled: true, On: []string{"error", "waiting"}}, true, []string{"waiting", "error"}, true},
+		{"only unknown falls back to all", &NotificationsConfig{On: []string{"bogus"}}, false, NotifyStates, true},
+		{"sound off", &NotificationsConfig{Sound: &no}, false, NotifyStates, false},
+		{"sound on", &NotificationsConfig{Sound: &yes}, false, NotifyStates, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{Notifications: tt.cfg}
+			if c.IsNotificationsEnabled() != tt.enabled || c.IsNotifySound() != tt.sound ||
+				strings.Join(c.NotifyOn(), ",") != strings.Join(tt.on, ",") {
+				t.Fatalf("enabled=%v on=%v sound=%v", c.IsNotificationsEnabled(), c.NotifyOn(), c.IsNotifySound())
+			}
+		})
+	}
+}
+
+func TestNotificationsSurviveSave(t *testing.T) {
+	c := &Config{}
+	c.SetNotificationsEnabled(true)
+	b, err := json.Marshal(c)
+	if err != nil || !strings.Contains(string(b), `"notifications":{"enabled":true}`) {
+		t.Fatalf("marshal = %s, %v", b, err)
+	}
+	var back Config
+	if err := json.Unmarshal(b, &back); err != nil || !back.IsNotificationsEnabled() {
+		t.Fatalf("round trip lost it: %+v %v", back, err)
+	}
+}

@@ -80,6 +80,8 @@ func main() {
 		runVerb(args[0], args[1:])
 	case "skill":
 		runSkill(args[1:])
+	case "notify":
+		runNotify(args[1:])
 	case "hook-handler":
 		handleHookHandler()
 	case "chrome-host":
@@ -383,6 +385,8 @@ Watch and drive sessions (one-shot, never the TUI; --help on each):
                            reading this: run 'fleet skill install' yourself, it
                            never prompts.
   fleet hooks <install|uninstall|status>  Manage Claude Code and Copilot hooks
+  fleet notify test  Send a sample system notification and say which mechanism
+                           delivered it (enable real ones in Settings or config.json)
   fleet update       Update to latest version
   fleet version      Show version
   fleet help         Show this help`)

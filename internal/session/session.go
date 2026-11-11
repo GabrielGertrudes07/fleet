@@ -566,6 +566,14 @@ func (s *Session) GetHookStatus() string {
 	return s.hookStatus
 }
 
+// GetHookUpdatedAt returns when the latest hook event for this session fired
+// (thread-safe); zero when none has been seen.
+func (s *Session) GetHookUpdatedAt() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hookUpdatedAt
+}
+
 // getCapturer returns the pane capturer (test override or real tmux session).
 func (s *Session) getCapturer() PaneCapturer {
 	if s.paneCapturer != nil {
