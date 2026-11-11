@@ -1574,8 +1574,9 @@ func (h *Home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Re-read the drawer height (clamped) so a change takes effect without a
 		// relaunch; the next render/sync resizes the live stream to match.
 		h.drawerHeight = h.cfg.GetDrawerHeight()
-		// Display toggles are live, but the density flag changes BuildFlatItems
-		// output (inter-group spacer rows), so rebuild the flattened list.
+		// Display toggles are live, but the density and style flags change
+		// BuildFlatItems output (spacer rows, folded checkout lines), so rebuild
+		// the flattened list.
 		h.rebuildFlatItems()
 		return h, nil
 
@@ -6492,7 +6493,7 @@ func (h *Home) jumpToNextAttentionPR() {
 		for off := 1; off <= n; off++ {
 			i := (h.cursor + off + n) % n // +n keeps the index non-negative for a stale cursor
 			it := h.flatItems[i]
-			if !it.IsCheckoutHeader {
+			if !it.IsCheckoutHeader && !(it.IsOriginHeader && it.Merged) {
 				continue
 			}
 			if snoozeState(nil, it.OriginKey, it.RepoPath, h.groupSnooze, now).Muted {
@@ -6516,7 +6517,7 @@ func (h *Home) jumpToNextAttentionPR() {
 	}
 	h.cursor = target
 	if hdr := h.flatItems[target]; hdr.SessionCount > 0 {
-		h.repoExpanded[hdr.RepoPath] = true
+		h.repoExpanded[h.expandKeyFor(hdr)] = true
 		h.rebuildFlatItems()
 		for i, it := range h.flatItems {
 			if it.Session != nil && it.RepoPath == hdr.RepoPath {
@@ -8606,6 +8607,9 @@ func (h *Home) cursorBarContext() BarContext {
 	}
 	item := h.flatItems[h.cursor]
 	switch {
+	case item.IsOriginHeader && item.Merged:
+		// The folded checkout's actions (branch, PR, fork…) live on this row.
+		return BarContextCheckout
 	case item.IsOriginHeader:
 		return BarContextOrigin
 	case item.IsCheckoutHeader:
@@ -8644,7 +8648,7 @@ func (h *Home) cursorBreadcrumb(bg color.Color) string {
 		parts = append(parts, segStyle.Render(origin))
 	}
 
-	if item.RepoPath != "" && !item.IsOriginHeader {
+	if item.RepoPath != "" && (!item.IsOriginHeader || item.Merged) {
 		branch := ""
 		if info := h.gitInfo()[item.RepoPath]; info != nil {
 			branch = info.Branch
@@ -9592,17 +9596,19 @@ func (h *Home) checkoutContextMenu() (string, []ContextMenuItem) {
 		h.snoozeMenuItem(),
 		{ID: "delete_at_cursor", Label: deleteLabel, Shortcut: "d", Key: "d", Enabled: true},
 	}
+	if item.Merged {
+		// Clean style: the origin header stands for its only checkout, so the
+		// menu is the checkout's plus the origin-level entry, and `d` keeps its
+		// origin meaning (forget the group).
+		items = append(items[:len(items)-1], h.allowedAccountsMenuItem(item.OriginKey), items[len(items)-1])
+		items[len(items)-1].Label = "Forget Origin Group"
+		return "origin: " + item.OriginLabel, items
+	}
 	return kind + ": " + filepath.Base(repo), items
 }
 
-func (h *Home) originContextMenu() (string, []ContextMenuItem) {
-	item := h.flatItems[h.cursor]
-
-	expand := "Expand"
-	if item.Expanded {
-		expand = "Collapse"
-	}
-
+// allowedAccountsMenuItem builds the "Allowed Accounts…" row for an origin.
+func (h *Home) allowedAccountsMenuItem(originKey string) ContextMenuItem {
 	// Each clause carries its own note: a constant one would tell a user with no
 	// accounts configured that they have "only one", which is a false claim about
 	// their setup sitting next to the dialog that would disprove it.
@@ -9610,9 +9616,9 @@ func (h *Home) originContextMenu() (string, []ContextMenuItem) {
 	// The origin clause runs first because the restricted lookup below needs the
 	// key it checks for.
 	allowed := ContextMenuItem{ID: "allowed_accounts", Label: "Allowed Accounts…"}
-	restricted := len(h.cfg.GetAllowedAccounts(OriginExpandKey(item.OriginKey))) > 0
+	restricted := len(h.cfg.GetAllowedAccounts(OriginExpandKey(originKey))) > 0
 	switch {
-	case item.OriginKey == "":
+	case originKey == "":
 		allowed.Note = "no origin"
 	case h.accounts.Len() == 0: // nil-safe
 		// No trap to escape here: resolveAccount short-circuits to the ambient
@@ -9633,6 +9639,18 @@ func (h *Home) originContextMenu() (string, []ContextMenuItem) {
 	default:
 		allowed.Enabled = true
 	}
+	return allowed
+}
+
+func (h *Home) originContextMenu() (string, []ContextMenuItem) {
+	item := h.flatItems[h.cursor]
+
+	expand := "Expand"
+	if item.Expanded {
+		expand = "Collapse"
+	}
+
+	allowed := h.allowedAccountsMenuItem(item.OriginKey)
 
 	items := []ContextMenuItem{
 		{ID: "toggle_group", Label: expand, Shortcut: "⏎", Enabled: true},

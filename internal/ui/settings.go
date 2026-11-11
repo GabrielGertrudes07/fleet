@@ -30,6 +30,7 @@ var (
 	statusStyleSet       = []string{"icon", "bar"}
 	chevronStyleSet      = []string{"triangle", "plusminus"}
 	densitySet           = []string{"normal", "compact"}
+	sidebarStyleSet      = []string{"classic", "clean"}
 	enterModeSet         = []string{"attach", "split"}
 	accountStrategySet   = claudeaccount.Strategies
 	telemetryModeSet     = []string{config.TelemetryFull, config.TelemetryMinimal, config.TelemetryOff}
@@ -610,6 +611,15 @@ func buildSettingsCategories() []settingsCategory {
 				valueW: func() int { return maxStrW(chevronStyleSet) },
 				cycle: func(d *SettingsDialog, dir int) {
 					d.cfg.ChevronStyle = cycleString(d.cfg.GetChevronStyle(), chevronStyleSet, dir)
+					ApplyDisplayConfig(d.cfg)
+				},
+			},
+			{
+				label:  "Style",
+				value:  func(c *config.Config) string { return c.GetSidebarStyle() },
+				valueW: func() int { return maxStrW(sidebarStyleSet) },
+				cycle: func(d *SettingsDialog, dir int) {
+					d.cfg.SidebarStyle = cycleString(d.cfg.GetSidebarStyle(), sidebarStyleSet, dir)
 					ApplyDisplayConfig(d.cfg)
 				},
 			},

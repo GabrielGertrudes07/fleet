@@ -148,6 +148,10 @@ Group your directories into **areas** and give each terminal window its own: `fl
 
 A session belongs to the area whose longest `paths` prefix contains its directory (or its repository's main checkout); anything unmatched goes to the `default` area. The optional `account` is used for new sessions there unless `--account` or the repo's `allowed_accounts` say otherwise. The panel title shows the current area plus a count of waiting sessions in the others. Inside an area, repos that sit two or more folders below the area path are grouped under a collapsible header named after the first folder (`~/Projects/Personal/Youtube/lastro` → "Youtube"); repos directly in the area folder stay loose. Collapse a group like any other header; snoozing and deleting still apply to the repos inside it. The area is only a per-window view and is never saved; without `areas` fleet behaves as before.
 
+### Clean sidebar
+
+Prefer a plainer list? Set `"sidebar_style": "clean"` in `~/.config/fleet/config.json` (or **`S`** → Appearance → Style). A repo with a single checkout loses its middle row: the branch (`main*` when dirty) and PR badge sit on the repo's own line in dim, and `w`, `b`, `p`, `Ctrl+P` and the `.` menu act on it from there. Headers show their count and status dot only while collapsed, and the agent glyph appears only when you mix agents. The default, `"classic"`, is unchanged.
+
 ### And more
 
 - **Session resume** — restart with **`r`**, the agent picks up exactly where it left off (`claude --resume` / `codex resume` / `opencode --session` / `copilot --session-id`)

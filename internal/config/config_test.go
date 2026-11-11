@@ -560,3 +560,12 @@ func TestTicketStartStateHonoursTheLegacyKey(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSidebarStyle(t *testing.T) {
+	tests := []struct{ in, want string }{{"", "classic"}, {"classic", "classic"}, {"clean", "clean"}, {"bogus", "classic"}}
+	for _, tc := range tests {
+		if got := (&Config{SidebarStyle: tc.in}).GetSidebarStyle(); got != tc.want {
+			t.Errorf("GetSidebarStyle(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
