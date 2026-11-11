@@ -6458,7 +6458,7 @@ func (h *Home) buildJumpTree() []SidebarItem {
 	originOf, isWorktreeOf := h.originResolvers()
 	sessions, pending, pinned := h.areaScoped()
 	items := BuildFlatItems(sessions, pending, exp, h.filterText, pinned, h.failedWorktreeRemovals, h.groupSnooze, time.Now(), originOf, isWorktreeOf)
-	return GroupFolders(items, h.areaFolderOf(), exp)
+	return AddInbox(GroupFolders(items, h.areaFolderOf(), exp), ShowInbox)
 }
 
 // jumpToNextAttentionPR moves the cursor to the first session of the next
@@ -8945,7 +8945,7 @@ func (h *Home) rebuildFlatItems() {
 	originOf, isWorktreeOf := h.originResolvers()
 	now := time.Now()
 	sessions, pending, pinned := h.areaScoped()
-	h.flatItems = GroupFolders(BuildFlatItems(sessions, pending, h.repoExpanded, h.filterText, pinned, h.failedWorktreeRemovals, h.groupSnooze, now, originOf, isWorktreeOf), h.areaFolderOf(), h.repoExpanded)
+	h.flatItems = AddInbox(GroupFolders(BuildFlatItems(sessions, pending, h.repoExpanded, h.filterText, pinned, h.failedWorktreeRemovals, h.groupSnooze, now, originOf, isWorktreeOf), h.areaFolderOf(), h.repoExpanded), ShowInbox)
 
 	// Resolve the attention-mute for EVERY session, not just the visible ones,
 	// so callers that count the whole fleet (statusCountsLine) read the same

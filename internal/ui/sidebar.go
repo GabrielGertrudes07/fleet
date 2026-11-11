@@ -27,6 +27,12 @@ type SidebarItem struct {
 	IsOriginHeader   bool
 	IsCheckoutHeader bool
 	IsSpacer         bool // visual gap row between origin groups; not selectable
+	// Label (only on an IsSpacer row) turns the gap into a non-selectable
+	// section title — the inbox header (see inbox.go).
+	Label string
+	// InboxOrigin (session row) is set when the row was lifted into the inbox:
+	// it sits outside its origin group, so the origin name rides on the title.
+	InboxOrigin string
 	// IsFolderHeader marks a folder-group header (see folders.go): a row above
 	// several origins that share a directory under an area. IsRepoHeader stays
 	// true on it so "not a session" guards keep working.
@@ -480,7 +486,10 @@ func RenderSidebar(items []SidebarItem, sessions []*session.Session, gitInfo map
 		width := width - 2*item.Depth
 		switch {
 		case item.IsSpacer:
-			// Blank line between origin groups.
+			// Blank line between origin groups, or a section title (inbox).
+			if item.Label != "" {
+				b.WriteString(HeaderStyleForLabel(item.Label, width))
+			}
 		case item.IsOriginHeader || item.IsFolderHeader:
 			b.WriteString(renderOriginHeaderWith(item, gitInfo[item.RepoPath], width, i == cursor))
 		case item.IsCheckoutHeader:
@@ -802,6 +811,9 @@ func renderSessionItem(item SidebarItem, width int, selected bool, slot int) str
 	status := s.GetStatus()
 	symbolRaw := StatusSymbolRaw(status)
 	title := s.Title
+	if item.InboxOrigin != "" {
+		title = item.InboxOrigin + " › " + title
+	}
 
 	// Snooze suffix. Only a session's OWN snooze renders a countdown — under a
 	// snoozed group the header owns the clock, so N children don't repeat the

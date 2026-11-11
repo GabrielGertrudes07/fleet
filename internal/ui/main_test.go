@@ -31,6 +31,9 @@ func TestMain(m *testing.M) {
 	// Every NewHome would otherwise open (and never close) its own stats.db.
 	// Tests that exercise the store swap in their own.
 	statsOpenStore = func() (*stats.Store, error) { return nil, nil }
+	// The tree-shape tests set sessions to Waiting/Finished to test aggregates;
+	// the inbox would lift those rows out. Inbox tests call AddInbox directly.
+	ShowInbox = false
 	code := m.Run()
 	os.RemoveAll(home)
 	os.Exit(code)

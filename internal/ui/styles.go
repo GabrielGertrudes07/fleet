@@ -440,6 +440,7 @@ var (
 	ShowDirtyIndicator = true                     // "*" dirty-worktree marker
 	ShowSlotBadges     = true                     // "[N]" hotkey slot badge
 	ShowHeaderCounts   = true                     // session count on origin/checkout headers
+	ShowInbox          = true                     // "Preciso de você" section at the top of the sidebar
 	AccountUsageStyle  = config.AccountUsageSplit // top-right quota readout: "split"/"grouped"/"off"
 	ChevronStyle       = "triangle"               // "triangle" (▾▸) or "plusminus" (−+)
 	SidebarDensity     = "normal"                 // "normal" (gap between groups) or "compact"
@@ -484,6 +485,7 @@ func ApplyDisplayConfig(cfg *config.Config) {
 	ShowDirtyIndicator = cfg.IsShowDirtyIndicator()
 	ShowSlotBadges = cfg.IsShowSlotBadges()
 	ShowHeaderCounts = cfg.IsShowHeaderCounts()
+	ShowInbox = cfg.IsShowInbox()
 	AccountUsageStyle = cfg.GetAccountUsageStyle()
 	ChevronStyle = cfg.GetChevronStyle()
 	SidebarDensity = cfg.GetSidebarDensity()

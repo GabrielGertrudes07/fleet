@@ -18,6 +18,7 @@ var folderAreas = []config.Area{
 // "Youtube" folder in work too (same name, different area).
 func folderHome(t *testing.T, areas []config.Area, current string) (*Home, map[string]*session.Session) {
 	t.Helper()
+	noInbox(t)
 	paths := map[string]string{
 		"lastro":   "/tmp/fo/P/Youtube/lastro",
 		"historia": "/tmp/fo/P/Youtube/historia",

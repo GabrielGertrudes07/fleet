@@ -152,6 +152,7 @@ type Config struct {
 	ShowDirtyIndicator *bool  `json:"show_dirty_indicator,omitempty"` // "*" dirty-worktree marker
 	ShowSlotBadges     *bool  `json:"show_slot_badges,omitempty"`     // "[N]" hotkey slot badge
 	ShowHeaderCounts   *bool  `json:"show_header_counts,omitempty"`   // session count on origin/checkout headers
+	Inbox              *bool  `json:"inbox,omitempty"`                // "Preciso de você" section at the top of the sidebar (default true)
 	ChevronStyle       string `json:"chevron_style,omitempty"`        // "triangle" (default ▾▸) or "plusminus" (−+)
 	SidebarStyle       string `json:"sidebar_style,omitempty"`        // "classic" (default) or "clean" (one line per single-checkout repo, branch inline)
 	SidebarDensity     string `json:"sidebar_density,omitempty"`      // "normal" (default) or "compact" (no inter-group gap)
@@ -742,6 +743,9 @@ func (c *Config) IsShowSlotBadges() bool { return boolDefaultTrue(c.ShowSlotBadg
 
 // IsShowHeaderCounts reports whether session counts are shown on headers (default: true).
 func (c *Config) IsShowHeaderCounts() bool { return boolDefaultTrue(c.ShowHeaderCounts) }
+
+// IsShowInbox reports whether sessions waiting on the user are gathered in an inbox section (default: true).
+func (c *Config) IsShowInbox() bool { return boolDefaultTrue(c.Inbox) }
 
 // GetChevronStyle returns the configured header chevron style — "triangle"
 // (default ▾▸) or "plusminus" (−+).

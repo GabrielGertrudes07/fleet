@@ -111,6 +111,7 @@ func TestJumpEntersCollapsedCheckout(t *testing.T) {
 // must continue from that header (landing in its group) rather than restarting
 // at the first candidate and wrapping to an earlier origin.
 func TestJumpFromHeaderAnchorsAfterIt(t *testing.T) {
+	noInbox(t)
 	aWait := session.NewSession("alpha-wait", "/tmp/jh-alpha")
 	aWait.SetStatus(session.StatusWaiting)
 	bWait := session.NewSession("beta-wait", "/tmp/jh-beta")
