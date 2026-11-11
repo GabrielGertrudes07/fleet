@@ -72,6 +72,8 @@ func main() {
 		runSend(args[1:])
 	case "status", "st":
 		runStatus(args[1:])
+	case "hoje", "today":
+		runHoje(args[1:])
 	case "read":
 		runRead(args[1:])
 	case "wait":
@@ -365,6 +367,8 @@ Usage:
                            (--wait: then wait for the turn and print the reply)
 
 Watch and drive sessions (one-shot, never the TUI; --help on each):
+  fleet hoje               Where you left off: what waits on you, what finished
+                           (with the closing reply), merged PRs, unsent drafts
   fleet status [session...]  Live status of every session: what each is waiting
                            on, unsent drafts, branch, PR (--json, --active,
                            --waiting, --all)
