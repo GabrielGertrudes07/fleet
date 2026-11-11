@@ -303,3 +303,17 @@ func TestSoundFor(t *testing.T) {
 		t.Fatal("sound mapping wrong")
 	}
 }
+
+// Inside tmux TERM_PROGRAM says "tmux", but macOS still tells every process
+// launched from a GUI terminal which app that is.
+func TestTerminalBundleIDFallsBackToTheLaunchingApp(t *testing.T) {
+	t.Setenv("TERM_PROGRAM", "tmux")
+	t.Setenv("__CFBundleIdentifier", "com.apple.Terminal")
+	if got := TerminalBundleID(); got != "com.apple.Terminal" {
+		t.Errorf("TerminalBundleID = %q, want com.apple.Terminal", got)
+	}
+	t.Setenv("TERM_PROGRAM", "iTerm.app")
+	if got := TerminalBundleID(); got != "com.googlecode.iterm2" {
+		t.Errorf("TERM_PROGRAM must win when known, got %q", got)
+	}
+}

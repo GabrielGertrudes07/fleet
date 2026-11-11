@@ -180,9 +180,14 @@ func runCommand(ctx context.Context, goos string, lookPath func(string) (string,
 }
 
 // TerminalBundleID is the bundle id of the terminal fleet runs in, from the
-// environment ("" when unknown).
+// environment ("" when unknown). Inside tmux TERM_PROGRAM reads "tmux", so it
+// falls back to __CFBundleIdentifier, which macOS sets for every process
+// launched from a GUI app.
 func TerminalBundleID() string {
-	return BundleID(os.Getenv("TERM_PROGRAM"))
+	if id := BundleID(os.Getenv("TERM_PROGRAM")); id != "" {
+		return id
+	}
+	return os.Getenv("__CFBundleIdentifier")
 }
 
 func firstNonEmpty(a, b string) string {
