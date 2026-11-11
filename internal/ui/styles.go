@@ -443,6 +443,7 @@ var (
 	AccountUsageStyle  = config.AccountUsageSplit // top-right quota readout: "split"/"grouped"/"off"
 	ChevronStyle       = "triangle"               // "triangle" (▾▸) or "plusminus" (−+)
 	SidebarDensity     = "normal"                 // "normal" (gap between groups) or "compact"
+	SidebarStyle       = "classic"                // "classic" (full tree) or "clean" (folded checkout line, counts only when collapsed)
 )
 
 // FreezeAnim stops every self-rescheduling animation, so two screen captures
@@ -486,6 +487,7 @@ func ApplyDisplayConfig(cfg *config.Config) {
 	AccountUsageStyle = cfg.GetAccountUsageStyle()
 	ChevronStyle = cfg.GetChevronStyle()
 	SidebarDensity = cfg.GetSidebarDensity()
+	SidebarStyle = cfg.GetSidebarStyle()
 }
 
 // chevronGlyph returns the expand/collapse marker for a header, honoring the

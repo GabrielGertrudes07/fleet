@@ -37,6 +37,15 @@ type SidebarItem struct {
 	// grouping reads. SessionTotal is every session under the origin, muted or not.
 	FolderPath   string
 	SessionTotal int
+	// Merged (clean style, origin header): the origin has exactly one checkout
+	// and its row is not emitted — the origin header stands for it. RepoPath then
+	// names that checkout, so every action that resolves "the repo under the
+	// cursor" works from the header, and the header carries the branch/PR info
+	// the checkout row would have shown.
+	Merged bool
+	// HideAgentGlyph (session row, clean style): every visible session runs the
+	// same agent, so the glyph would be noise.
+	HideAgentGlyph bool
 	// Depth indents the row one level per unit (members of a folder group).
 	Depth int
 
@@ -189,6 +198,7 @@ func BuildFlatItems(
 
 	lowerFilter := strings.ToLower(filter)
 	var items []SidebarItem
+	clean := SidebarStyle == "clean"
 
 	for _, origin := range originKeys {
 		repos := originCheckouts[origin]
@@ -268,7 +278,7 @@ func BuildFlatItems(
 			sessionTotal += len(blk.sessions)
 		}
 		originExpanded := IsExpanded(expanded, OriginExpandKey(origin))
-		items = append(items, SidebarItem{
+		originHdr := SidebarItem{
 			IsRepoHeader:   true,
 			IsOriginHeader: true,
 			OriginKey:      origin,
@@ -279,27 +289,42 @@ func BuildFlatItems(
 			SessionCount:   len(blocks),
 			StatusCounts:   originStatusCounts,
 			GroupSnooze:    groupSnoozeAt(groupSnooze, OriginExpandKey(origin), now),
-		})
+		}
+		// Clean style: a single checkout folds into its origin header. Its own
+		// expand state no longer exists as a row, so the origin's governs.
+		merged := clean && len(blocks) == 1
+		if merged {
+			originHdr.Merged = true
+			originHdr.RepoPath = blocks[0].repo
+			originHdr.RemovalFailed = failedRemovals[blocks[0].repo]
+			if originHdr.GroupSnooze.IsZero() {
+				originHdr.GroupSnooze = groupSnoozeAt(groupSnooze, blocks[0].repo, now)
+			}
+		}
+		items = append(items, originHdr)
 
 		if !originExpanded {
 			continue
 		}
 
 		for _, blk := range blocks {
-			checkoutExpanded := IsExpanded(expanded, blk.repo)
-			items = append(items, SidebarItem{
-				IsRepoHeader:     true,
-				IsCheckoutHeader: true,
-				OriginKey:        origin,
-				RepoPath:         blk.repo,
-				Expanded:         checkoutExpanded,
-				SessionCount:     len(blk.sessions),
-				StatusCounts:     blk.statusCounts,
-				RemovalFailed:    failedRemovals[blk.repo],
-				// Only its own snooze — a checkout inside a snoozed origin
-				// renders no countdown of its own (the origin owns the clock).
-				GroupSnooze: groupSnoozeAt(groupSnooze, blk.repo, now),
-			})
+			checkoutExpanded := true
+			if !merged {
+				checkoutExpanded = IsExpanded(expanded, blk.repo)
+				items = append(items, SidebarItem{
+					IsRepoHeader:     true,
+					IsCheckoutHeader: true,
+					OriginKey:        origin,
+					RepoPath:         blk.repo,
+					Expanded:         checkoutExpanded,
+					SessionCount:     len(blk.sessions),
+					StatusCounts:     blk.statusCounts,
+					RemovalFailed:    failedRemovals[blk.repo],
+					// Only its own snooze — a checkout inside a snoozed origin
+					// renders no countdown of its own (the origin owns the clock).
+					GroupSnooze: groupSnoozeAt(groupSnooze, blk.repo, now),
+				})
+			}
 
 			if !checkoutExpanded {
 				continue
@@ -328,7 +353,37 @@ func BuildFlatItems(
 			}
 		}
 	}
+	if clean {
+		hideSingleAgentGlyphs(items)
+	}
 	return items
+}
+
+// hideSingleAgentGlyphs stamps HideAgentGlyph on every session row when all the
+// visible sessions run one agent: the glyph only earns its column when agents
+// are mixed.
+func hideSingleAgentGlyphs(items []SidebarItem) {
+	first, mixed, any := "", false, false
+	for _, it := range items {
+		if it.Session == nil {
+			continue
+		}
+		g := agentGlyph(it.Session.Agent)
+		if !any {
+			first, any = g, true
+		} else if g != first {
+			mixed = true
+			break
+		}
+	}
+	if !any || mixed {
+		return
+	}
+	for i := range items {
+		if items[i].Session != nil {
+			items[i].HideAgentGlyph = true
+		}
+	}
 }
 
 // CollectGroupInfo gathers status counts for a checkout (used externally).
@@ -427,7 +482,7 @@ func RenderSidebar(items []SidebarItem, sessions []*session.Session, gitInfo map
 		case item.IsSpacer:
 			// Blank line between origin groups.
 		case item.IsOriginHeader || item.IsFolderHeader:
-			b.WriteString(renderOriginHeader(item, width, i == cursor))
+			b.WriteString(renderOriginHeaderWith(item, gitInfo[item.RepoPath], width, i == cursor))
 		case item.IsCheckoutHeader:
 			b.WriteString(renderCheckoutHeader(item, gitInfo[item.RepoPath], width, i == cursor))
 		case item.Pending != nil:
@@ -536,13 +591,27 @@ func renderStatusSummaryOpts(counts map[session.Status]int, alwaysShowCount bool
 // The blank row inserted before each non-first origin (see BuildFlatItems)
 // carries the section break on its own; no trailing rule needed.
 func renderOriginHeader(item SidebarItem, width int, selected bool) string {
+	return renderOriginHeaderWith(item, nil, width, selected)
+}
+
+// renderOriginHeaderWith is renderOriginHeader plus the git info of the folded
+// checkout (clean style, item.Merged), whose branch and PR state ride on the
+// header line in dim.
+func renderOriginHeaderWith(item SidebarItem, repoInfo *git.RepoInfo, width int, selected bool) string {
 	chevron := chevronGlyph(item.Expanded)
+	// Clean style: counts and the aggregate pill only on a COLLAPSED header —
+	// expanded, the rows below already say it.
+	showAgg := SidebarStyle != "clean" || !item.Expanded
 	countStr := ""
-	if ShowHeaderCounts {
-		countStr = fmt.Sprintf("%d", item.SessionCount)
+	if ShowHeaderCounts && showAgg {
+		n := item.SessionCount
+		if SidebarStyle == "clean" && item.IsOriginHeader {
+			n = item.SessionTotal // clean counts sessions, not checkouts
+		}
+		countStr = fmt.Sprintf("%d", n)
 	}
 	summary := ""
-	if ShowStatusPills {
+	if ShowStatusPills && showAgg {
 		summary = renderStatusSummary(item.StatusCounts)
 	}
 	// A snoozed group replaces its pill with the countdown: every child is
@@ -551,11 +620,15 @@ func renderOriginHeader(item SidebarItem, width int, selected bool) string {
 	if snoozeSuffix != "" {
 		summary = ""
 	}
+	inline := ""
+	if item.Merged {
+		inline = cleanInline(item, repoInfo)
+	}
 
 	if selected {
 		icon := SelectionMarker(true).Render(chevron)
 		name := selTitle().Render(" " + item.OriginLabel + " ")
-		out := fmt.Sprintf("%s %s", icon, name)
+		out := fmt.Sprintf("%s %s", icon, name) + inline
 		if countStr != "" {
 			out += " " + selStatus().Render(countStr)
 		}
@@ -569,7 +642,7 @@ func renderOriginHeader(item SidebarItem, width int, selected bool) string {
 	if !item.GroupSnooze.IsZero() {
 		name = DimStyle.Render(item.OriginLabel)
 	}
-	out := fmt.Sprintf("%s %s", icon, name)
+	out := fmt.Sprintf("%s %s", icon, name) + inline
 	if countStr != "" {
 		out += " " + DimStyle.Render(countStr)
 	}
@@ -577,6 +650,35 @@ func renderOriginHeader(item SidebarItem, width int, selected bool) string {
 		out += "  " + summary
 	}
 	return out + snoozeSuffix
+}
+
+// cleanInline is what the folded checkout row would have shown, for the origin
+// header: "  main*" in dim (italic for a worktree), the PR badge with its own
+// verdict colour, and the failed-removal marker. Empty when the checkout has no
+// branch (not a git repo, or git info not loaded yet) — a folder name is not a
+// branch and the origin label already says it.
+func cleanInline(item SidebarItem, info *git.RepoInfo) string {
+	out := ""
+	if info != nil && info.Branch != "" {
+		branch := info.Branch
+		if idx := strings.LastIndex(branch, "/"); idx != -1 {
+			branch = branch[idx+1:]
+		}
+		if len(branch) > 22 {
+			branch = branch[:19] + "…"
+		}
+		if ShowDirtyIndicator && info.IsDirty {
+			branch += "*"
+		}
+		out = "  " + DimStyle.Italic(info.IsWorktreeRepo).Render(branch)
+		if ShowPRBadges && info.PR != nil {
+			out += " " + renderPRBadge(info.PR, false)
+		}
+	}
+	if item.RemovalFailed {
+		out += "  " + ErrorStyle.Render("✕ removal failed — d to retry")
+	}
+	return out
 }
 
 // renderGroupSnooze renders a header's snooze countdown, or "" when the group
@@ -633,7 +735,7 @@ func renderCheckoutHeader(item SidebarItem, repoInfo *git.RepoInfo, width int, s
 	}
 
 	summary := ""
-	if ShowStatusPills {
+	if ShowStatusPills && (SidebarStyle != "clean" || !item.Expanded) {
 		summary = renderStatusSummary(item.StatusCounts)
 	}
 	summarySuffix := ""
@@ -714,7 +816,7 @@ func renderSessionItem(item SidebarItem, width int, selected bool, slot int) str
 
 	// Agent glyph (✻/◇) is optional — when shown it occupies a glyph + a space.
 	glyphRaw := ""
-	if ShowAgentGlyphs {
+	if ShowAgentGlyphs && !item.HideAgentGlyph {
 		glyphRaw = agentGlyph(s.Agent)
 	}
 
