@@ -54,7 +54,7 @@ func TestMaybeNotify(t *testing.T) {
 		h.maybeNotify(s, session.StatusRunning, session.StatusWaiting)
 		select {
 		case n := <-ch:
-			if n.Title != "Needs you · Fix login" || n.Group != "fleet-"+s.ID || n.Sound != "Glass" {
+			if n.Title != "Precisa de você · Fix login" || n.Group != "fleet-"+s.ID || n.Sound != "Glass" {
 				t.Fatalf("notification = %+v", n)
 			}
 		case <-time.After(3 * time.Second):
