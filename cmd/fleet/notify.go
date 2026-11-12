@@ -20,9 +20,9 @@ func runNotify(args []string) {
 	}
 	cfg := config.Load()
 	n := notify.Notification{
-		Title:    notify.Title(notify.StateWaiting, "Example session"),
+		Title:    notify.Title(notify.StateWaiting, "Sessão de exemplo"),
 		Subtitle: notify.Subtitle("", "", "fleet", "main"),
-		Message:  "Permission: Bash(git push origin main)",
+		Message:  "Permissão: Bash(git push origin main)",
 		Group:    "fleet-test",
 		Sound:    notify.SoundFor(notify.StateWaiting, cfg.IsNotifySound()),
 	}

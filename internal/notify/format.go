@@ -18,11 +18,11 @@ const (
 )
 
 // Title prefixes, one per state. Kept together so the wording is easy to find
-// and change (the project is upstream-English; the labels are not localized).
+// and change (pt-BR: the wording is what the owner reads).
 const (
-	titleWaiting  = "Needs you"
-	titleFinished = "Finished"
-	titleError    = "Error"
+	titleWaiting  = "Precisa de você"
+	titleFinished = "Concluída"
+	titleError    = "Erro"
 )
 
 // MaxMessage is the longest message, in runes, a notification carries.
@@ -100,11 +100,11 @@ func Line(s string, max int) string {
 }
 
 // WaitingMessage says what the session is asking for, from the prompt on its
-// screen: "Permission: <command>" for a tool approval, otherwise the question
+// screen: "Permissão: <command>" for a tool approval, otherwise the question
 // followed by its options. nil means the pane showed no parsable prompt.
 func WaitingMessage(m *session.Menu) string {
 	if m == nil {
-		return "Waiting for your input"
+		return "Aguardando sua resposta"
 	}
 	if m.Kind == "permission" {
 		what := m.Subject
@@ -114,7 +114,7 @@ func WaitingMessage(m *session.Menu) string {
 		if what == "" {
 			what = m.Question
 		}
-		return Line("Permission: "+firstLine(what), 0)
+		return Line("Permissão: "+firstLine(what), 0)
 	}
 	var opts []string
 	for _, o := range m.Options {
@@ -135,7 +135,7 @@ func WaitingMessage(m *session.Menu) string {
 		msg += " [" + b.String() + "]"
 	}
 	if strings.TrimSpace(msg) == "" {
-		return "Waiting for your input"
+		return "Aguardando sua resposta"
 	}
 	return Line(msg, 0)
 }
@@ -162,7 +162,7 @@ func FinishedMessage(reply string) string {
 		}
 	}
 	if len(parts) == 0 {
-		return "Turn finished"
+		return "Resposta concluída"
 	}
 	return Line(strings.Join(parts, " "), 0)
 }
@@ -188,7 +188,7 @@ func ErrorMessage(lines []string, fallback string) string {
 		}
 	}
 	if fallback == "" {
-		fallback = "Session stopped"
+		fallback = "Sessão parou"
 	}
 	return Line(fallback, 0)
 }
