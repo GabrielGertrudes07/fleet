@@ -317,3 +317,20 @@ func TestTerminalBundleIDFallsBackToTheLaunchingApp(t *testing.T) {
 		t.Errorf("TERM_PROGRAM must win when known, got %q", got)
 	}
 }
+
+func TestMarker(t *testing.T) {
+	tests := []struct{ name, reply, want string }{
+		{"progress update", "Rodei os testes.\nAgora vou ajustar o filtro.", MarkerNone},
+		{"result", "Feito.\nresult: Notificações em pt-BR", MarkerDone},
+		{"failed bold", "**Failed:** sem acesso", MarkerDone},
+		{"needs input wins", "result: parcial\nneeds input: qual conta?", MarkerNeedsInput},
+		{"mid-line is not a marker", "o resultado: foi bom", MarkerNone},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Marker(tt.reply); got != tt.want {
+				t.Fatalf("Marker = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

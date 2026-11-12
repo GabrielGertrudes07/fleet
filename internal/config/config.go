@@ -214,6 +214,11 @@ type NotificationsConfig struct {
 	On []string `json:"on,omitempty"`
 	// Sound plays a sound with the notification. Default true.
 	Sound *bool `json:"sound,omitempty"`
+	// FinishedNeedsMarker: a finished turn only notifies when the reply holds
+	// a line starting "result:", "failed:" or "needs input:" (the closing
+	// convention of autonomous sessions), so progress updates stay silent.
+	// Default true; false notifies on every finished turn.
+	FinishedNeedsMarker *bool `json:"finished_needs_marker,omitempty"`
 }
 
 // Notification states accepted in NotificationsConfig.On.
@@ -250,6 +255,12 @@ func (c *Config) NotifyOn() []string {
 		}
 	}
 	return append([]string(nil), NotifyStates...)
+}
+
+// IsFinishedNeedsMarker reports whether "finished" needs a closing marker in the
+// reply (default: true).
+func (c *Config) IsFinishedNeedsMarker() bool {
+	return c.Notifications == nil || boolDefaultTrue(c.Notifications.FinishedNeedsMarker)
 }
 
 // IsNotifySound reports whether notifications play a sound (default: true).
