@@ -162,16 +162,6 @@ Turn on **Notifications** in Settings (or add it to `~/.config/fleet/config.json
 
 The title names the session (`Needs you · Fix login`), the subtitle gives `area · account · repo/branch`, and the message is what it is asking (`Permission: Bash(git push origin main)`), the start of its last reply, or the error line. Sessions hidden by the area filter still notify; the one you are attached to does not; two fleet windows on the same state notify once. macOS uses `terminal-notifier` when installed (click to focus your terminal, one live notification per session) and falls back to `osascript`; Linux uses `notify-send`. Run `fleet notify test` to check which mechanism works. Off by default.
 
-### Notifications — know when a session needs you
-
-Turn on **Notifications** in Settings (or add it to `~/.config/fleet/config.json`) and fleet raises a system notification when a session moves from working to **waiting** (a permission or question), **finished** or **error** (including a usage limit):
-
-```json
-"notifications": { "enabled": true, "on": ["waiting", "finished", "error"], "sound": true }
-```
-
-The title names the session (`Needs you · Fix login`), the subtitle gives `area · account · repo/branch`, and the message is what it is asking (`Permission: Bash(git push origin main)`), the start of its last reply, or the error line. Sessions hidden by the area filter still notify; the one you are attached to does not; two fleet windows on the same state notify once. macOS uses `terminal-notifier` when installed (click to focus your terminal, one live notification per session) and falls back to `osascript`; Linux uses `notify-send`. Run `fleet notify test` to check which mechanism works. Off by default.
-
 ### And more
 
 - **Session resume** — restart with **`r`**, the agent picks up exactly where it left off (`claude --resume` / `codex resume` / `opencode --session` / `copilot --session-id`)
