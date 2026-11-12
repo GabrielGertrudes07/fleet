@@ -74,14 +74,18 @@ func (h *Home) maybeNotify(s *session.Session, from, to session.Status) {
 		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 2*notify.Timeout)
 		defer cancel()
-		ev.Message = notify.Message(s, state)
-		ev.Key = notify.TransitionKey(state, hookStatus, hookAt, ev.Message)
+		var ok bool
+		ev.Message, ev.State, ok = notify.Message(s, state, h.cfg.IsFinishedNeedsMarker())
+		if !ok {
+			return
+		}
+		ev.Key = notify.TransitionKey(ev.State, hookStatus, hookAt, ev.Message)
 		sent, mech, err := n.Send(ctx, ev)
 		switch {
 		case err != nil:
-			debuglog.Logger.Error("notify failed", "id", s.ID, "state", state, "mechanism", mech, "err", err)
+			debuglog.Logger.Error("notify failed", "id", s.ID, "state", ev.State, "mechanism", mech, "err", err)
 		case sent:
-			debuglog.Logger.Info("notified", "id", s.ID, "state", state, "mechanism", mech)
+			debuglog.Logger.Info("notified", "id", s.ID, "state", ev.State, "mechanism", mech)
 		}
 	}()
 }
