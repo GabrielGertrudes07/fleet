@@ -69,10 +69,10 @@ func TestFormat(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"title waiting", Title(StateWaiting, "Fix login"), "Needs you · Fix login"},
-		{"title finished", Title(StateFinished, "Fix login"), "Finished · Fix login"},
-		{"title error", Title(StateError, "Fix login"), "Error · Fix login"},
-		{"title without session title", Title(StateError, ""), "Error"},
+		{"title waiting", Title(StateWaiting, "Fix login"), "Precisa de você · Fix login"},
+		{"title finished", Title(StateFinished, "Fix login"), "Concluída · Fix login"},
+		{"title error", Title(StateError, "Fix login"), "Erro · Fix login"},
+		{"title without session title", Title(StateError, ""), "Erro"},
 		{"subtitle all", Subtitle("work", "ana", "fleet", "main"), "work · ana · fleet/main"},
 		{"subtitle no area/account", Subtitle("", "", "fleet", "main"), "fleet/main"},
 		{"subtitle no branch", Subtitle("work", "", "fleet", ""), "work · fleet"},
@@ -81,12 +81,12 @@ func TestFormat(t *testing.T) {
 		{"newlines collapsed", Line("a\n\n  b\tc", 0), "a b c"},
 		{"leading dash dropped", Line("-e evil", 0), "e evil"},
 		{"finished first lines", FinishedMessage("\nDone.\n\nChanged 3 files\n"), "Done. Changed 3 files"},
-		{"finished empty", FinishedMessage("  "), "Turn finished"},
-		{"permission", WaitingMessage(&session.Menu{Kind: "permission", Subject: "Bash(git push origin main)\nmore"}), "Permission: Bash(git push origin main)"},
+		{"finished empty", FinishedMessage("  "), "Resposta concluída"},
+		{"permission", WaitingMessage(&session.Menu{Kind: "permission", Subject: "Bash(git push origin main)\nmore"}), "Permissão: Bash(git push origin main)"},
 		{"question with options", WaitingMessage(&session.Menu{Kind: "question", Question: "Which DB?", Options: []session.MenuOption{{N: 1, Label: "Postgres"}, {N: 2, Label: "SQLite"}}}), "Which DB? [Postgres / SQLite]"},
-		{"no menu", WaitingMessage(nil), "Waiting for your input"},
+		{"no menu", WaitingMessage(nil), "Aguardando sua resposta"},
 		{"error from pane", ErrorMessage([]string{"x", "You've hit your 5-hour limit · resets 12:10pm", "", "> "}, ""), "You've hit your 5-hour limit · resets 12:10pm"},
-		{"error fallback", ErrorMessage([]string{"hello"}, ""), "Session stopped"},
+		{"error fallback", ErrorMessage([]string{"hello"}, ""), "Sessão parou"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
