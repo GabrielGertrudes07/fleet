@@ -161,6 +161,7 @@ func TestFolder(t *testing.T) {
 		{Name: "personal", Paths: []string{"~/P"}, Default: true},
 		{Name: "work", Paths: []string{"~/W", "~/P/Work"}},
 		{Name: "other", Paths: []string{"~/O"}},
+		{Name: "yt", Paths: []string{"~/Y"}, Group: true},
 	}
 	tests := []struct {
 		name       string
@@ -179,6 +180,9 @@ func TestFolder(t *testing.T) {
 		{"longest prefix is the base", areas, "/home/u/P/Work/api/svc", "", "work", "api"},
 		{"longest prefix, directly inside", areas, "/home/u/P/Work/api", "", "work", ""},
 		{"worktree outside the folders follows its main repo", areas, "/tmp/wt", "/home/u/W/clients/app", "work", "clients"},
+		{"group area: repo directly inside groups under the area name", areas, "/home/u/Y/lastro", "", "yt", "yt"},
+		{"group area: the area folder itself joins the group", areas, "/home/u/Y", "", "yt", "yt"},
+		{"group area: deeper repo keeps its folder", areas, "/home/u/Y/a/b", "", "yt", "a"},
 		{"boundary: P2 is not P", areas, "/home/u/P2/a/b", "", "", ""},
 	}
 	for _, tc := range tests {
