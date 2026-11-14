@@ -958,10 +958,11 @@ const (
 	// glyph in those fonts, shifting the title. △ is a clean third shape, distinct
 	// from the star and the diamond. ⚇ (Misc Symbols, East-Asian-Neutral, in
 	// Menlo) reads as Copilot's goggles.
-	claudeGlyph   = "✻"
-	codexGlyph    = "◇"
-	opencodeGlyph = "△"
-	copilotGlyph  = "⚇"
+	claudeGlyph      = "✻"
+	codexGlyph       = "◇"
+	opencodeGlyph    = "△"
+	copilotGlyph     = "⚇"
+	antigravityGlyph = "✦"
 )
 
 // agentGlyph returns the sigil for a session's agent. An empty or unrecognized
@@ -974,6 +975,8 @@ func agentGlyph(t agent.Type) string {
 		return opencodeGlyph
 	case agent.Copilot:
 		return copilotGlyph
+	case agent.Antigravity:
+		return antigravityGlyph
 	default:
 		return claudeGlyph
 	}
