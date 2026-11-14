@@ -277,6 +277,10 @@ type Area struct {
 	// Account optionally pins new sessions in this area to one Claude account
 	// (an email fleet knows about).
 	Account string `json:"account,omitempty"`
+	// Group gathers repos sitting directly in the area's path (and the path
+	// itself) under one folder header named after the area, for areas whose
+	// path is the folder that holds the repos.
+	Group bool `json:"group,omitempty"`
 	// Default marks the area that owns paths no area claims.
 	Default bool `json:"default,omitempty"`
 }

@@ -217,6 +217,9 @@ func (m *Matcher) Folder(path string, mainRepo func() string) (areaName, folder 
 	rel := strings.TrimPrefix(strings.TrimPrefix(path, pre), string(filepath.Separator))
 	parts := strings.Split(rel, string(filepath.Separator))
 	if len(parts) < 2 {
+		if m.areas[i].Group {
+			return m.areas[i].Name, m.areas[i].Name
+		}
 		return m.areas[i].Name, ""
 	}
 	return m.areas[i].Name, parts[0]
