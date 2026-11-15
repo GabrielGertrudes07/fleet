@@ -43,6 +43,8 @@ type cacheEntry struct {
 	Failure       string    `json:"failure,omitempty"`
 	LoggedOut     bool      `json:"logged_out,omitempty"`
 	Mismatch      string    `json:"mismatch,omitempty"`
+	Failures      int       `json:"failures,omitempty"`
+	RetryUntil    time.Time `json:"retry_until,omitzero"`
 }
 
 type cachedFailure string
@@ -66,6 +68,7 @@ func LoadUsageCache(path string) map[string]Usage {
 			SevenDayPct: e.SevenDayPct, SevenDayReset: e.SevenDayReset,
 			FetchedAt: e.FetchedAt, AttemptedAt: e.AttemptedAt,
 			LoggedOut: e.LoggedOut, Mismatch: e.Mismatch,
+			Failures: e.Failures, RetryUntil: e.RetryUntil,
 		}
 		if e.Failure != "" {
 			u.Err = cachedFailure(e.Failure)
@@ -110,6 +113,7 @@ func writeUsageCache(path string, m map[string]Usage) error {
 			SevenDayPct: u.SevenDayPct, SevenDayReset: u.SevenDayReset,
 			FetchedAt: u.FetchedAt, AttemptedAt: u.AttemptedAt,
 			LoggedOut: u.LoggedOut, Mismatch: u.Mismatch,
+			Failures: u.Failures, RetryUntil: u.RetryUntil,
 		}
 		if u.Err != nil {
 			e.Failure = FailureReason(u.Err)
@@ -140,14 +144,24 @@ func writeUsageCache(path string, m map[string]Usage) error {
 
 // PollDue is the per-account poll throttle, shared by the TUI and the CLI.
 func (u Usage) PollDue(now time.Time) bool {
+	if now.Before(u.RetryUntil) {
+		return false // the endpoint refused us (429/5xx) and said, or we chose, to wait
+	}
 	return now.Sub(u.AttemptedAt) >= MinPollInterval || u.StaleAfterReset(now)
 }
 
 // WithFailure records a failed poll, keeping the last numbers.
 func (u Usage) WithFailure(err error, now time.Time) Usage {
+	prevFailures := u.Failures
 	u.Err = err
 	u.AttemptedAt = now
 	u.LoggedOut = errors.Is(err, ErrNotLoggedIn)
+	u.Failures, u.RetryUntil = 0, time.Time{}
+	var th throttledError
+	if errors.As(err, &th) {
+		u.Failures = prevFailures + 1
+		u.RetryUntil = now.Add(RetryDelay(u.Failures, th.after))
+	}
 	return u
 }
 
@@ -170,6 +184,34 @@ func FailureReason(err error) string {
 		return se.Error()
 	}
 	return "usage request failed"
+}
+
+// MaxRetryDelay caps the backoff after repeated 429/5xx, so a recovered account
+// is read again within half an hour at worst.
+const MaxRetryDelay = 30 * time.Minute
+
+// throttledError is a 429/5xx that may carry the server's Retry-After. It
+// unwraps to statusError, so FailureReason and the cache keep the same text.
+type throttledError struct {
+	status statusError
+	after  time.Duration
+}
+
+func (e throttledError) Error() string { return e.status.Error() }
+func (e throttledError) Unwrap() error { return e.status }
+
+// RetryDelay is how long to wait after the n-th consecutive refusal: the
+// server's Retry-After when it gave one, else MinPollInterval doubled per
+// failure — never below the floor, never above MaxRetryDelay.
+func RetryDelay(n int, retryAfter time.Duration) time.Duration {
+	d := retryAfter
+	if d <= 0 {
+		d = MinPollInterval
+		for i := 1; i < n && d < MaxRetryDelay; i++ {
+			d *= 2
+		}
+	}
+	return min(max(d, MinPollInterval), MaxRetryDelay)
 }
 
 type statusError int

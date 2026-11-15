@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -258,5 +259,80 @@ func TestSaveUsageCacheKeepsNewerAttempt(t *testing.T) {
 	}
 	if got := LoadUsageCache(path)["a@x"].SevenDayPct; got != 40 {
 		t.Fatalf("SevenDayPct = %d, want the newer 40", got)
+	}
+}
+
+func TestRetryDelayHonorsServerAndBacksOff(t *testing.T) {
+	cases := []struct {
+		n     int
+		after time.Duration
+		want  time.Duration
+	}{
+		{1, 0, MinPollInterval},
+		{2, 0, 2 * MinPollInterval},
+		{3, 0, 4 * MinPollInterval},
+		{20, 0, MaxRetryDelay},
+		{1, 10 * time.Minute, 10 * time.Minute},
+		{1, time.Second, MinPollInterval}, // never below the floor
+		{1, 3 * time.Hour, MaxRetryDelay}, // never above the cap
+	}
+	for _, c := range cases {
+		if got := RetryDelay(c.n, c.after); got != c.want {
+			t.Errorf("RetryDelay(%d, %v) = %v, want %v", c.n, c.after, got, c.want)
+		}
+	}
+}
+
+func TestThrottledFailureBlocksPollingAndPersists(t *testing.T) {
+	now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+	u := Usage{SevenDayPct: 22, FetchedAt: now.Add(-time.Hour)}
+	err := throttledError{status: statusError(429), after: 10 * time.Minute}
+	u = u.WithFailure(err, now)
+	if FailureReason(u.Err) != "usage endpoint returned 429" {
+		t.Fatalf("reason changed: %q", FailureReason(u.Err))
+	}
+	if u.Failures != 1 || !u.RetryUntil.Equal(now.Add(10*time.Minute)) {
+		t.Fatalf("failures=%d retryUntil=%v", u.Failures, u.RetryUntil)
+	}
+	if u.PollDue(now.Add(5 * time.Minute)) {
+		t.Fatal("must not poll inside Retry-After")
+	}
+	if !u.PollDue(now.Add(11 * time.Minute)) {
+		t.Fatal("must poll again after Retry-After")
+	}
+	// a second refusal without Retry-After doubles from the floor
+	u2 := u.WithFailure(statusErrorAsThrottled(429), now.Add(11*time.Minute))
+	if u2.Failures != 2 || u2.RetryUntil.Sub(now.Add(11*time.Minute)) != 2*MinPollInterval {
+		t.Fatalf("failures=%d retryUntil=%v", u2.Failures, u2.RetryUntil)
+	}
+	// persisted across processes
+	path := filepath.Join(t.TempDir(), "c.json")
+	if err := SaveUsageCache(path, map[string]Usage{"a@x": u}); err != nil {
+		t.Fatal(err)
+	}
+	got := LoadUsageCache(path)["a@x"]
+	if got.Failures != 1 || !got.RetryUntil.Equal(u.RetryUntil) {
+		t.Fatalf("not persisted: %+v", got)
+	}
+	// a non-throttle failure (logged out) clears the backoff
+	if o := u.WithFailure(ErrNotLoggedIn, now.Add(time.Hour)); o.Failures != 0 || !o.RetryUntil.IsZero() {
+		t.Fatalf("logged-out must not keep a backoff: %+v", o)
+	}
+}
+
+func statusErrorAsThrottled(code int) error { return throttledError{status: statusError(code)} }
+
+func TestParseRetryAfter(t *testing.T) {
+	now := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+	if got := parseRetryAfter("120", now); got != 2*time.Minute {
+		t.Errorf("seconds: %v", got)
+	}
+	if got := parseRetryAfter(now.Add(90*time.Second).Format(http.TimeFormat), now); got != 90*time.Second {
+		t.Errorf("date: %v", got)
+	}
+	for _, bad := range []string{"", "abc", "-5", "0"} {
+		if got := parseRetryAfter(bad, now); got != 0 {
+			t.Errorf("%q: %v", bad, got)
+		}
 	}
 }
