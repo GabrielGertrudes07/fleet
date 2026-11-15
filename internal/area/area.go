@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/brizzai/fleet/internal/claudeaccount"
 	"github.com/brizzai/fleet/internal/config"
@@ -154,8 +155,11 @@ func (m *Matcher) Account(path string, mainRepo func() string) string {
 }
 
 // PickAccount applies an area's account to a launch: it returns email when it
-// is a configured, logged-in account the origin's allowlist permits, and false
-// otherwise so the caller runs its normal selection.
+// is a configured, logged-in account the origin's allowlist permits and whose
+// quota is not spent, and false otherwise so the caller runs its normal
+// selection (which balances across the accounts that still have quota). A spent
+// pinned account is skipped rather than honoured: the pin says where work
+// belongs by default, not that it should wait days for a weekly reset.
 func PickAccount(email string, accounts []claudeaccount.Account, usage map[string]claudeaccount.Usage, allowed []string) (claudeaccount.Account, bool) {
 	if email == "" {
 		return claudeaccount.Account{}, false
@@ -170,6 +174,9 @@ func PickAccount(email string, accounts []claudeaccount.Account, usage map[strin
 	// Manual falls through to the automatic modes when the pinned account is
 	// absent, disallowed or logged out; only an exact hit counts here.
 	if !ok || acct.Email != email {
+		return claudeaccount.Account{}, false
+	}
+	if usage[email].Exhausted(time.Now()) {
 		return claudeaccount.Account{}, false
 	}
 	return acct, true
