@@ -3,6 +3,7 @@ package area
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/brizzai/fleet/internal/claudeaccount"
 	"github.com/brizzai/fleet/internal/config"
@@ -145,6 +146,10 @@ func TestPickAccount(t *testing.T) {
 		{"unknown account falls to normal selection", "ghost@x.com", accts, nil, nil, ""},
 		{"logged out falls to normal selection", "me@corp.com", accts, map[string]claudeaccount.Usage{"me@corp.com": {LoggedOut: true}}, nil, ""},
 		{"area without account", "", accts, nil, nil, ""},
+		{"weekly spent falls to normal selection", "me@corp.com", accts, map[string]claudeaccount.Usage{"me@corp.com": {SevenDayPct: 100, SevenDayReset: time.Now().Add(48 * time.Hour)}}, nil, ""},
+		{"five-hour spent falls to normal selection", "me@corp.com", accts, map[string]claudeaccount.Usage{"me@corp.com": {FiveHourPct: 100, FiveHourReset: time.Now().Add(time.Hour)}}, nil, ""},
+		{"spent but already reset still used", "me@corp.com", accts, map[string]claudeaccount.Usage{"me@corp.com": {SevenDayPct: 100, SevenDayReset: time.Now().Add(-time.Minute)}}, nil, "me@corp.com"},
+		{"quota left still used", "me@corp.com", accts, map[string]claudeaccount.Usage{"me@corp.com": {SevenDayPct: 71, SevenDayReset: time.Now().Add(48 * time.Hour)}}, nil, "me@corp.com"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

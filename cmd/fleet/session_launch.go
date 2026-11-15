@@ -170,7 +170,11 @@ func areaLaunchAccount(cfg *config.Config, all []claudeaccount.Account, dir stri
 		return claudeaccount.Account{}, false
 	}
 	email := m.Account(dir, func() string { return git.GetMainWorktreePath(dir) })
-	return area.PickAccount(email, all, nil, allowed)
+	var usage map[string]claudeaccount.Usage
+	if email != "" && len(all) > 1 {
+		usage, _ = readLaunchUsage(all)
+	}
+	return area.PickAccount(email, all, usage, allowed)
 }
 
 // selectLaunchAccount runs account_strategy with the TUI's own Select, reading
