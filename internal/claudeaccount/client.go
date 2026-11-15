@@ -66,6 +66,12 @@ type Usage struct {
 	// (ResetCachedUsage) and the next poll overwrites.
 	LoggedOut bool
 
+	// Failures counts consecutive polls refused with 429/5xx; RetryUntil is the
+	// earliest next poll after one (the server's Retry-After, or exponential
+	// backoff from MinPollInterval). Both clear on the first successful poll.
+	Failures   int
+	RetryUntil time.Time
+
 	// Mismatch is the email the account's config dir is REALLY logged in as,
 	// set only when it differs from the email fleet has on record for it ("" =
 	// matches, or not checked yet).

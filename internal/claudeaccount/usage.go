@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -155,6 +156,9 @@ func FetchUsage(ctx context.Context, dir string) (Usage, error) {
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return Usage{}, fmt.Errorf("%w (%d)", ErrNotLoggedIn, resp.StatusCode)
 	}
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+		return Usage{}, throttledError{status: statusError(resp.StatusCode), after: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())}
+	}
 	if resp.StatusCode != http.StatusOK {
 		return Usage{}, statusError(resp.StatusCode)
 	}
@@ -199,4 +203,19 @@ func parseResetTime(s string) time.Time {
 		return time.Time{}
 	}
 	return t
+}
+
+// parseRetryAfter reads the header as seconds or an HTTP date; 0 when absent or unusable.
+func parseRetryAfter(h string, now time.Time) time.Duration {
+	h = strings.TrimSpace(h)
+	if h == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(h); err == nil && secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(h); err == nil && t.After(now) {
+		return t.Sub(now)
+	}
+	return 0
 }
