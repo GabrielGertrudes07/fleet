@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -2651,6 +2652,9 @@ const backgroundAgentGlyph = "◯"
 // Only the in-flight glyph (◯) is matched, so a completed agent (rendered with a
 // different glyph) does not keep the session pinned Running after its work ends.
 func detectBackgroundAgentsRunning(recentLines []string) bool {
+	if backgroundAgentsInFooter(recentLines) {
+		return true
+	}
 	n := min(3, len(recentLines))
 	for _, line := range recentLines[:n] {
 		t := strings.TrimSpace(line)
@@ -2659,6 +2663,34 @@ func detectBackgroundAgentsRunning(recentLines []string) bool {
 		}
 		if strings.Contains(t, "tokens") &&
 			(strings.Contains(t, "· ↓") || strings.Contains(t, "· ↑")) {
+			return true
+		}
+	}
+	return false
+}
+
+// footerAgentsRe matches the status-bar counter Claude Code renders while background
+// agents are in flight ("← 1 agent", "← 3 agents"). The dock rows (◯) are only drawn
+// when the list is expanded, so a parked lead usually shows nothing but this footer.
+var footerAgentsRe = regexp.MustCompile(`← [1-9][0-9]* agents?\b`)
+
+// backgroundAgentsInFooter reports whether the live status bar (the bottom lines of the
+// pane) counts at least one in-flight background agent, or the spinner line says the
+// lead is "Waiting for N background agent(s)". The footer is anchored on the mode
+// chrome (⏵⏵ / shift+tab / ? for shortcuts / ↓ to manage) so conversation text that
+// merely quotes "← 1 agent" does not match; only the bottom 6 lines are scanned.
+func backgroundAgentsInFooter(recentLines []string) bool {
+	n := min(6, len(recentLines))
+	for _, line := range recentLines[:n] {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "✻ Waiting for") && strings.Contains(t, "background agent") {
+			return true
+		}
+		if !footerAgentsRe.MatchString(t) {
+			continue
+		}
+		if strings.HasPrefix(t, "⏵⏵") || strings.Contains(t, "shift+tab") ||
+			strings.Contains(t, "? for shortcuts") || strings.Contains(t, "↓ to manage") {
 			return true
 		}
 	}
