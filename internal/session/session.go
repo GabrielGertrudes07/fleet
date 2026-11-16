@@ -1125,7 +1125,7 @@ func (s *Session) Restart() error {
 	debuglog.Logger.Info("session restart", "id", s.ID, "title", s.Title)
 	// A project folder that is gone cannot be relaunched into. Say so BEFORE killing
 	// the old pane (which still holds the scrollback and the exit reason).
-	if st, err := os.Stat(s.ProjectPath); err != nil || !st.IsDir() {
+	if st, err := os.Stat(s.ProjectPath); err != nil && os.IsNotExist(err) || err == nil && !st.IsDir() {
 		return fmt.Errorf("project directory %s no longer exists (deleted or moved): recreate it or remove this session", s.ProjectPath)
 	}
 	s.beginRelaunch()
@@ -2643,6 +2643,11 @@ const backgroundAgentGlyph = "◯"
 // lead's turn has ended (it fired Stop and is parked until they re-invoke it), so the
 // session is Running rather than finished/idle.
 //
+// Besides the dock, the live status bar is read too (backgroundAgentsInFooter: footer
+// counters, the "Waiting for N background agent(s)" spinner line and the newest turn
+// summary's "N shells still running"), over the bottom 6 lines and anchored on the mode
+// chrome. The paragraph below is about the dock rows specifically.
+//
 // Position is the only reliable discriminator. ANSI is stripped before detection, so a
 // dock row QUOTED in conversation text (e.g. a session discussing this feature — the
 // row is documented verbatim) is byte-identical to a live one; no textual anchor can
@@ -2687,7 +2692,12 @@ var waitingBgAgentsRe = regexp.MustCompile(`^\S\s+Waiting for [1-9][0-9]* backgr
 // stillRunningRe matches the summary line a parked lead leaves under its last reply
 // while background shells keep working: "✻ Churned for 49m · done 3:03 PM · 2 shells
 // still running". It needs the "done" stamp so ordinary prose cannot match.
-var stillRunningRe = regexp.MustCompile(`· done [0-9:]+ [AP]M · [1-9][0-9]* (shells?|agents?|tasks?) still running`)
+var stillRunningRe = regexp.MustCompile(`· done [0-9:]+( [AP]M)? · [1-9][0-9]* (shells?|agents?|tasks?) still running`)
+
+// doneStampRe matches the completion stamp every turn summary carries ("· done 3:03 PM",
+// 12- or 24-hour). The NEWEST such line in the bottom window is the only one that
+// describes the present, so an older "N shells still running" left above it is stale.
+var doneStampRe = regexp.MustCompile(`· done [0-9:]+( [AP]M)?\b`)
 
 // backgroundAgentsInFooter reports whether the live status bar (the bottom lines of the
 // pane) counts at least one in-flight background agent, or the spinner line says the
@@ -2697,13 +2707,20 @@ var stillRunningRe = regexp.MustCompile(`· done [0-9:]+ [AP]M · [1-9][0-9]* (s
 // merely quotes "← 1 agent" does not match; only the bottom 6 lines are scanned.
 func backgroundAgentsInFooter(recentLines []string) bool {
 	n := min(6, len(recentLines))
+	summarySeen := false
 	for _, line := range recentLines[:n] {
 		t := strings.TrimSpace(line)
 		if waitingBgAgentsRe.MatchString(t) {
 			return true
 		}
-		if stillRunningRe.MatchString(t) {
-			return true
+		if doneStampRe.MatchString(t) {
+			// Newest turn summary (lines are newest-first): it alone says whether work
+			// is still in flight; an older one further up is scrollback.
+			if !summarySeen && stillRunningRe.MatchString(t) {
+				return true
+			}
+			summarySeen = true
+			continue // a summary line is never the footer
 		}
 		if !footerAgentsRe.MatchString(t) {
 			continue

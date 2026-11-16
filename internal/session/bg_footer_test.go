@@ -18,6 +18,8 @@ func TestDetectBackgroundAgentsInFooter(t *testing.T) {
 		{"prose mentioning shells still running", []string{rule, "❯ ", rule, "  deixei 2 shells still running no servidor"}, false},
 		{"waiting line with another spinner glyph", []string{rule, "❯ ", rule, "✶ Waiting for 2 background agents to finish"}, true},
 		{"waiting line quoted without glyph", []string{rule, "❯ ", rule, "  a linha Waiting for 1 background agent aparece"}, false},
+		{"summary 24h clock", []string{rule, "❯ ", rule, "", "✻ Churned for 1m · done 15:03 · 1 shell still running"}, true},
+		{"stale still-running line under a newer finished summary", []string{rule, "❯ ", rule, "✻ Brewed for 3s · done 3:09 PM", "o shell terminou", "✻ Churned for 49m · done 3:03 PM · 2 shells still running"}, false},
 		{"no agents", []string{"  ⏵⏵ bypass permissions on (shift+tab to cycle)", rule, "❯ ", rule}, false},
 		{"quoted in conversation, no chrome", []string{rule, "❯ ", rule, "  o rodapé mostra ← 1 agent quando há agentes"}, false},
 		{"zero agents", []string{"  ⏵⏵ bypass permissions on · ← 0 agents", rule, "❯ "}, false},

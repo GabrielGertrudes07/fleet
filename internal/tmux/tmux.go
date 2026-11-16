@@ -535,13 +535,15 @@ func ReconnectSession(tmuxName, displayName, workDir string) *Session {
 	}
 }
 
-// startShellArgs returns the shell-command argv for `tmux new-session` that makes the
-// pane's shell start INSIDE workDir. When the tmux server was started in a directory
-// that has since been deleted, new panes inherit that dead cwd even with a valid -c:
-// the shell prints "shell-init: error retrieving current directory: getcwd: cannot
-// access parent directories" and shows "." as its prompt. A tiny perl launcher (always
-// on macOS) chdirs first, then execs the user's login shell, so the shell never sees
-// the dead directory. Empty (tmux's default shell) when perl or workDir is missing.
+// startShellArgs returns the shell-command for `tmux new-session` that makes the pane's
+// shell start INSIDE workDir (nil when it cannot). When the tmux server was started in a
+// directory that has since been deleted, new panes inherit that dead cwd even with a
+// valid -c: the shell prints "shell-init: error retrieving current directory: getcwd:
+// cannot access parent directories" and shows "." as its prompt. A tiny perl launcher
+// (always on macOS) chdirs first, then execs the login shell, so the shell never sees
+// the dead directory. It is ONE pre-quoted string, not argv: tmux older than 3.x joins
+// extra arguments with spaces before `sh -c`, which would split a path with spaces.
+// The shell is tmux's own `default-shell`, falling back to $SHELL then /bin/zsh.
 func startShellArgs(workDir string) []string {
 	if workDir == "" {
 		return nil
@@ -550,11 +552,29 @@ func startShellArgs(workDir string) []string {
 	if err != nil {
 		return nil
 	}
-	shell := os.Getenv("SHELL")
+	shell := ""
+	if out, err := exec.Command("tmux", "show-options", "-gv", "default-shell").Output(); err == nil {
+		shell = strings.TrimSpace(string(out))
+	}
+	if shell == "" {
+		shell = os.Getenv("SHELL")
+	}
 	if shell == "" {
 		shell = "/bin/zsh"
 	}
-	return []string{perl, "-e", "chdir(shift @ARGV) or die \"chdir: $!\\n\"; exec @ARGV", workDir, shell, "-l"}
+	script := `chdir(shift @ARGV) or die "chdir: $!\n"; exec @ARGV`
+	return []string{shellQuote(perl) + " -e " + shellQuote(script) + " " + shellQuote(workDir) + " " + shellQuote(shell) + " -l"}
+}
+
+// workDirMissing reports whether dir definitely does not exist (or is not a directory).
+// Other Stat failures (permission, I/O) are NOT "deleted": let the launch try and fail
+// with its own message instead of telling the user to discard a healthy session.
+func workDirMissing(dir string) bool {
+	st, err := os.Stat(dir)
+	if err != nil {
+		return os.IsNotExist(err)
+	}
+	return !st.IsDir()
 }
 
 // Start creates a detached tmux session and runs the given command.
@@ -566,7 +586,7 @@ func (s *Session) Start(command string, env ...string) error {
 	// the agent refuses to launch ("The current directory no longer exists"), leaving
 	// a session that looks started but is a bare prompt. Say so up front.
 	if s.WorkDir != "" {
-		if st, err := os.Stat(s.WorkDir); err != nil || !st.IsDir() {
+		if workDirMissing(s.WorkDir) {
 			return fmt.Errorf("project directory %s no longer exists (deleted or moved): recreate it or remove this session", s.WorkDir)
 		}
 	}
@@ -575,7 +595,8 @@ func (s *Session) Start(command string, env ...string) error {
 	for _, e := range env {
 		args = append(args, "-e", e)
 	}
-	args = append(args, startShellArgs(s.WorkDir)...)
+	launcher := startShellArgs(s.WorkDir)
+	args = append(args, launcher...)
 	cmd := exec.Command("tmux", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		debuglog.Logger.Error("tmux start failed", "session", s.Name, "workdir", s.WorkDir, "err", err)
@@ -613,10 +634,10 @@ func (s *Session) Start(command string, env ...string) error {
 
 	// Send command to the pane.
 	if command != "" {
-		// Enter the project directory explicitly. tmux ignores -c when the server
-		// itself was started in a directory that has since been deleted, so the pane
-		// can open somewhere else (or nowhere) and the agent would start there.
-		if s.WorkDir != "" {
+		// Without the perl launcher (see startShellArgs) enter the project directory
+		// explicitly: tmux ignores -c when the server itself was started in a directory
+		// that has since been deleted, so the agent would start somewhere else.
+		if s.WorkDir != "" && launcher == nil {
 			command = "cd " + shellQuote(s.WorkDir) + " && " + command
 		}
 		sendCmd := exec.Command("tmux", "send-keys", "-t", s.Name, command, "Enter")
