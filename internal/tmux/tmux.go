@@ -474,6 +474,15 @@ func ReconnectSession(tmuxName, displayName, workDir string) *Session {
 // Optional env vars are set at the tmux session level via -e flags,
 // inherited by the shell and all child processes (avoids race with shell plugins).
 func (s *Session) Start(command string, env ...string) error {
+	// A project folder that was deleted or moved would otherwise start a pane in a
+	// dead directory: the shell prints "getcwd: cannot access parent directories" and
+	// the agent refuses to launch ("The current directory no longer exists"), leaving
+	// a session that looks started but is a bare prompt. Say so up front.
+	if s.WorkDir != "" {
+		if st, err := os.Stat(s.WorkDir); err != nil || !st.IsDir() {
+			return fmt.Errorf("project directory %s no longer exists (deleted or moved): recreate it or remove this session", s.WorkDir)
+		}
+	}
 	// Create detached session.
 	args := []string{"new-session", "-d", "-s", s.Name, "-c", s.WorkDir}
 	for _, e := range env {
@@ -515,6 +524,12 @@ func (s *Session) Start(command string, env ...string) error {
 
 	// Send command to the pane.
 	if command != "" {
+		// Enter the project directory explicitly. tmux ignores -c when the server
+		// itself was started in a directory that has since been deleted, so the pane
+		// can open somewhere else (or nowhere) and the agent would start there.
+		if s.WorkDir != "" {
+			command = "cd " + shellQuote(s.WorkDir) + " && " + command
+		}
 		sendCmd := exec.Command("tmux", "send-keys", "-t", s.Name, command, "Enter")
 		if output, err := sendCmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("tmux send-keys failed: %s: %w", string(output), err)
