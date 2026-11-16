@@ -1652,6 +1652,13 @@ func (s *Session) updateStatusFromHook(oldStatus Status, hookStatus, hookReason 
 	if content, err := s.getCapturer().CapturePane(); err == nil {
 		paneContent = StripANSI(content)
 		paneStatus = detectStatus(paneContent, log)
+		// Shells-only (no agent) for longer than backgroundShellsOnlyPinnedFor after the
+		// turn ended: a dev server or watcher, not work that will re-invoke the lead.
+		if paneStatus == StatusRunning && hookStatus == "finished" && hookAge > backgroundShellsOnlyPinnedFor &&
+			backgroundShellsOnly(extractRecentLines(strings.Split(strings.TrimRight(paneContent, "\n"), "\n"), 50)) {
+			log.Info("background shells only for >30m after the turn ended, no longer pinning running", "hookAge", hookAge.Round(time.Second))
+			paneStatus = StatusFinished
+		}
 	}
 
 	// Out-of-pane tiebreaker: a between-bursts frame (the agent is working but its
@@ -2679,10 +2686,17 @@ func detectBackgroundAgentsRunning(recentLines []string) bool {
 	return false
 }
 
+// NOTE on language: like busyPatterns and approvalPatterns, the status-bar patterns below
+// match Claude Code's English UI strings ("agent(s)", "shell(s)", "still running",
+// "Waiting for N background agent"). Claude Code's chrome is not localized (a pt-BR
+// user still sees these in English), so there is no per-locale table; if that ever
+// changes, this block, busyPatterns and approvalPatterns need translating together.
+// What IS tolerated: the 12/24-hour clock in the turn summary and the rotating spinner glyph.
+
 // footerAgentsRe matches the status-bar counter Claude Code renders while background
 // agents are in flight ("← 1 agent", "← 3 agents"). The dock rows (◯) are only drawn
 // when the list is expanded, so a parked lead usually shows nothing but this footer.
-var footerAgentsRe = regexp.MustCompile(`(← |· |^)[1-9][0-9]* (agents?|shells?)\b`)
+var footerAgentsRe = regexp.MustCompile(`(← |· |^)[1-9][0-9]* ((?:agent|shell)s?)\b`)
 
 // waitingBgAgentsRe matches the parked lead's spinner line, "<glyph> Waiting for 1
 // background agent to finish". The glyph rotates (✻ ✳ ✶ ✢ * …), so any single
@@ -2692,7 +2706,7 @@ var waitingBgAgentsRe = regexp.MustCompile(`^\S\s+Waiting for [1-9][0-9]* backgr
 // stillRunningRe matches the summary line a parked lead leaves under its last reply
 // while background shells keep working: "✻ Churned for 49m · done 3:03 PM · 2 shells
 // still running". It needs the "done" stamp so ordinary prose cannot match.
-var stillRunningRe = regexp.MustCompile(`· done [0-9:]+( [AP]M)? · [1-9][0-9]* (shells?|agents?|tasks?) still running`)
+var stillRunningRe = regexp.MustCompile(`· done [0-9:]+( [AP]M)? · [1-9][0-9]* ((?:shell|agent|task)s?) still running`)
 
 // doneStampRe matches the completion stamp every turn summary carries ("· done 3:03 PM",
 // 12- or 24-hour). The NEWEST such line in the bottom window is the only one that
@@ -2706,27 +2720,73 @@ var doneStampRe = regexp.MustCompile(`· done [0-9:]+( [AP]M)?\b`)
 // chrome (⏵⏵ / shift+tab / ? for shortcuts / ↓ to manage) so conversation text that
 // merely quotes "← 1 agent" does not match; only the bottom 6 lines are scanned.
 func backgroundAgentsInFooter(recentLines []string) bool {
+	agents, shells := backgroundWork(recentLines)
+	return agents || shells
+}
+
+// backgroundShellsOnlyPinnedFor is how long a lead that shows ONLY background shells
+// (no agents) stays Running after its turn ended. Agents re-invoke the lead when they
+// finish, so they pin Running for as long as they live; a shell may be a dev server or
+// a watcher that never notifies anyone, so past this age it stops counting and the
+// session settles to finished/idle instead of reading busy forever.
+const backgroundShellsOnlyPinnedFor = 30 * time.Minute
+
+// backgroundShellsOnly reports whether the live status bar shows background shells but
+// no background agent (and no dock rows).
+func backgroundShellsOnly(recentLines []string) bool {
+	agents, shells := backgroundWork(recentLines)
+	return shells && !agents && !dockShowsAgents(recentLines)
+}
+
+// backgroundWork splits what the status bar says is still in flight into agents and
+// shells (tasks count as agents: they re-invoke the lead too). See
+// backgroundAgentsInFooter for the anchoring rules.
+func backgroundWork(recentLines []string) (agents, shells bool) {
 	n := min(6, len(recentLines))
 	summarySeen := false
 	for _, line := range recentLines[:n] {
 		t := strings.TrimSpace(line)
 		if waitingBgAgentsRe.MatchString(t) {
-			return true
+			agents = true
+			continue
 		}
 		if doneStampRe.MatchString(t) {
 			// Newest turn summary (lines are newest-first): it alone says whether work
 			// is still in flight; an older one further up is scrollback.
-			if !summarySeen && stillRunningRe.MatchString(t) {
-				return true
+			if !summarySeen {
+				if m := stillRunningRe.FindStringSubmatch(t); m != nil {
+					if strings.HasPrefix(m[2], "shell") {
+						shells = true
+					} else {
+						agents = true
+					}
+				}
 			}
 			summarySeen = true
 			continue // a summary line is never the footer
 		}
-		if !footerAgentsRe.MatchString(t) {
+		if !strings.HasPrefix(t, "⏵⏵") && !strings.Contains(t, "shift+tab") &&
+			!strings.Contains(t, "? for shortcuts") && !strings.Contains(t, "↓ to manage") {
 			continue
 		}
-		if strings.HasPrefix(t, "⏵⏵") || strings.Contains(t, "shift+tab") ||
-			strings.Contains(t, "? for shortcuts") || strings.Contains(t, "↓ to manage") {
+		for _, m := range footerAgentsRe.FindAllStringSubmatch(t, -1) {
+			if strings.HasPrefix(m[2], "shell") {
+				shells = true
+			} else {
+				agents = true
+			}
+		}
+	}
+	return agents, shells
+}
+
+// dockShowsAgents reports whether the expanded background-agents dock (◯ rows) is on screen.
+func dockShowsAgents(recentLines []string) bool {
+	n := min(3, len(recentLines))
+	for _, line := range recentLines[:n] {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, backgroundAgentGlyph) && strings.Contains(t, "tokens") &&
+			(strings.Contains(t, "· ↓") || strings.Contains(t, "· ↑")) {
 			return true
 		}
 	}
