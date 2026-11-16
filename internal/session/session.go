@@ -1074,6 +1074,11 @@ func (s *Session) negCacheRotation(owner, foreign string, foreignPID int) {
 // Restart kills and recreates the tmux session with the same config.
 func (s *Session) Restart() error {
 	debuglog.Logger.Info("session restart", "id", s.ID, "title", s.Title)
+	// A project folder that is gone cannot be relaunched into. Say so BEFORE killing
+	// the old pane (which still holds the scrollback and the exit reason).
+	if st, err := os.Stat(s.ProjectPath); err != nil || !st.IsDir() {
+		return fmt.Errorf("project directory %s no longer exists (deleted or moved): recreate it or remove this session", s.ProjectPath)
+	}
 	s.beginRelaunch()
 	defer s.endRelaunch()
 	// Resolve the id to resume BEFORE clearHookState() wipes the rejection state it
@@ -2491,6 +2496,11 @@ func detectBackgroundAgentsRunning(recentLines []string) bool {
 // when the list is expanded, so a parked lead usually shows nothing but this footer.
 var footerAgentsRe = regexp.MustCompile(`(← |· |^)[1-9][0-9]* (agents?|shells?)\b`)
 
+// waitingBgAgentsRe matches the parked lead's spinner line, "<glyph> Waiting for 1
+// background agent to finish". The glyph rotates (✻ ✳ ✶ ✢ * …), so any single
+// non-space rune qualifies.
+var waitingBgAgentsRe = regexp.MustCompile(`^\S\s+Waiting for [1-9][0-9]* background agents?\b`)
+
 // stillRunningRe matches the summary line a parked lead leaves under its last reply
 // while background shells keep working: "✻ Churned for 49m · done 3:03 PM · 2 shells
 // still running". It needs the "done" stamp so ordinary prose cannot match.
@@ -2506,7 +2516,7 @@ func backgroundAgentsInFooter(recentLines []string) bool {
 	n := min(6, len(recentLines))
 	for _, line := range recentLines[:n] {
 		t := strings.TrimSpace(line)
-		if strings.HasPrefix(t, "✻ Waiting for") && strings.Contains(t, "background agent") {
+		if waitingBgAgentsRe.MatchString(t) {
 			return true
 		}
 		if stillRunningRe.MatchString(t) {
