@@ -2489,11 +2489,17 @@ func detectBackgroundAgentsRunning(recentLines []string) bool {
 // footerAgentsRe matches the status-bar counter Claude Code renders while background
 // agents are in flight ("← 1 agent", "← 3 agents"). The dock rows (◯) are only drawn
 // when the list is expanded, so a parked lead usually shows nothing but this footer.
-var footerAgentsRe = regexp.MustCompile(`← [1-9][0-9]* agents?\b`)
+var footerAgentsRe = regexp.MustCompile(`(← |· |^)[1-9][0-9]* (agents?|shells?)\b`)
+
+// stillRunningRe matches the summary line a parked lead leaves under its last reply
+// while background shells keep working: "✻ Churned for 49m · done 3:03 PM · 2 shells
+// still running". It needs the "done" stamp so ordinary prose cannot match.
+var stillRunningRe = regexp.MustCompile(`· done [0-9:]+ [AP]M · [1-9][0-9]* (shells?|agents?|tasks?) still running`)
 
 // backgroundAgentsInFooter reports whether the live status bar (the bottom lines of the
 // pane) counts at least one in-flight background agent, or the spinner line says the
-// lead is "Waiting for N background agent(s)". The footer is anchored on the mode
+// lead is "Waiting for N background agent(s)", or the summary line says "N shells still
+// running" (background shells count the same: the lead is parked until they notify it). The footer is anchored on the mode
 // chrome (⏵⏵ / shift+tab / ? for shortcuts / ↓ to manage) so conversation text that
 // merely quotes "← 1 agent" does not match; only the bottom 6 lines are scanned.
 func backgroundAgentsInFooter(recentLines []string) bool {
@@ -2501,6 +2507,9 @@ func backgroundAgentsInFooter(recentLines []string) bool {
 	for _, line := range recentLines[:n] {
 		t := strings.TrimSpace(line)
 		if strings.HasPrefix(t, "✻ Waiting for") && strings.Contains(t, "background agent") {
+			return true
+		}
+		if stillRunningRe.MatchString(t) {
 			return true
 		}
 		if !footerAgentsRe.MatchString(t) {
