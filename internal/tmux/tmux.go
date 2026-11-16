@@ -470,6 +470,28 @@ func ReconnectSession(tmuxName, displayName, workDir string) *Session {
 	}
 }
 
+// startShellArgs returns the shell-command argv for `tmux new-session` that makes the
+// pane's shell start INSIDE workDir. When the tmux server was started in a directory
+// that has since been deleted, new panes inherit that dead cwd even with a valid -c:
+// the shell prints "shell-init: error retrieving current directory: getcwd: cannot
+// access parent directories" and shows "." as its prompt. A tiny perl launcher (always
+// on macOS) chdirs first, then execs the user's login shell, so the shell never sees
+// the dead directory. Empty (tmux's default shell) when perl or workDir is missing.
+func startShellArgs(workDir string) []string {
+	if workDir == "" {
+		return nil
+	}
+	perl, err := exec.LookPath("perl")
+	if err != nil {
+		return nil
+	}
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+	return []string{perl, "-e", "chdir(shift @ARGV) or die \"chdir: $!\\n\"; exec @ARGV", workDir, shell, "-l"}
+}
+
 // Start creates a detached tmux session and runs the given command.
 // Optional env vars are set at the tmux session level via -e flags,
 // inherited by the shell and all child processes (avoids race with shell plugins).
@@ -488,6 +510,7 @@ func (s *Session) Start(command string, env ...string) error {
 	for _, e := range env {
 		args = append(args, "-e", e)
 	}
+	args = append(args, startShellArgs(s.WorkDir)...)
 	cmd := exec.Command("tmux", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		debuglog.Logger.Error("tmux start failed", "session", s.Name, "workdir", s.WorkDir, "err", err)
