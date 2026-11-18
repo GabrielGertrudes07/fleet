@@ -202,9 +202,10 @@ type Session struct {
 	convTranscriptMtime time.Time
 	convLeadTimestamp   time.Time
 
-	tmuxSession  *tmux.Session
-	paneCapturer PaneCapturer // optional override for testing; if nil, uses tmuxSession
-	convActiveFn func() bool  // optional override for testing; if nil, reads the real transcript
+	tmuxSession       *tmux.Session
+	paneCapturer      PaneCapturer // optional override for testing; if nil, uses tmuxSession
+	convActiveFn      func() bool  // optional override for testing; if nil, reads the real transcript
+	subagentsActiveFn func() bool  // optional override for testing; if nil, reads the transcript's subagents dir
 	// claudeWaitingFn overrides claudeWaitingFor in tests; nil reads Claude's
 	// real per-process status file.
 	claudeWaitingFn func() string
@@ -1659,6 +1660,18 @@ func (s *Session) updateStatusFromHook(oldStatus Status, hookStatus, hookReason 
 			log.Info("background shells only for >30m after the turn ended, no longer pinning running", "hookAge", hookAge.Round(time.Second))
 			paneStatus = StatusFinished
 		}
+		// Footer-only "← N agent": the counter is per account, so it shows on every
+		// session while any background job of the account lives. After a Stop hook, with
+		// nothing else on screen saying this lead is busy, it pins Running only if one of
+		// this session's own subagents wrote its transcript recently.
+		if paneStatus == StatusRunning && hookStatus == "finished" {
+			recent := extractRecentLines(strings.Split(strings.TrimRight(paneContent, "\n"), "\n"), 50)
+			if backgroundAgentsFooterOnly(recent) && detectRunning(recent, "", log) == "" &&
+				!s.subagentsActiveWithin(footerAgentsQuietFor) {
+				log.Info("footer-only agent counter with no live subagent of this session, no longer pinning running")
+				paneStatus = StatusFinished
+			}
+		}
 	}
 
 	// Out-of-pane tiebreaker: a between-bursts frame (the agent is working but its
@@ -2731,6 +2744,50 @@ func backgroundAgentsInFooter(recentLines []string) bool {
 // session settles to finished/idle instead of reading busy forever.
 const backgroundShellsOnlyPinnedFor = 30 * time.Minute
 
+// footerAgentsQuietFor is how long this session's own subagent transcripts may stay
+// untouched before a footer-only "← N agent" counter stops pinning Running. A live
+// subagent writes its transcript on every tool call.
+const footerAgentsQuietFor = 5 * time.Minute
+
+// subagentsActiveWithin reports whether this session has a subagent whose transcript
+// was written within the window. When the transcript cannot be located it answers true,
+// so an unverifiable session keeps the old (pinned) behaviour instead of losing a real
+// agent's green.
+func (s *Session) subagentsActiveWithin(window time.Duration) bool {
+	if s.subagentsActiveFn != nil {
+		return s.subagentsActiveFn()
+	}
+	s.mu.RLock()
+	agentType := s.Agent
+	claudeID := s.ClaudeSessionID
+	projectPath := s.ProjectPath
+	s.mu.RUnlock()
+	if agent.Parse(string(agentType)) != agent.Claude || claudeID == "" {
+		return true
+	}
+	path := ClaudeTranscriptPath(claudeID, projectPath)
+	if path == "" {
+		return true
+	}
+	if _, err := os.Stat(path); err != nil {
+		return true
+	}
+	dir := filepath.Join(strings.TrimSuffix(path, ".jsonl"), "subagents")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false // transcript exists, no subagents dir: this session never ran one
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) <= window {
+			return true
+		}
+	}
+	return false
+}
+
 // backgroundShellsOnly reports whether the live status bar shows background shells but
 // no background agent (and no dock rows).
 func backgroundShellsOnly(recentLines []string) bool {
@@ -2742,12 +2799,30 @@ func backgroundShellsOnly(recentLines []string) bool {
 // shells (tasks count as agents: they re-invoke the lead too). See
 // backgroundAgentsInFooter for the anchoring rules.
 func backgroundWork(recentLines []string) (agents, shells bool) {
+	strong, footer, shells := backgroundWorkDetail(recentLines)
+	return strong || footer, shells
+}
+
+// backgroundAgentsFooterOnly reports that the ONLY evidence of background agents is the
+// "← N agent" counter in the status bar: no "Waiting for N background agent" spinner,
+// no "N agents still running" summary, no dock rows. Claude Code draws that counter per
+// account, not per session, so every session of an account shows "← 1 agent" while any
+// background job of that account is alive. On its own it says nothing about THIS lead.
+func backgroundAgentsFooterOnly(recentLines []string) bool {
+	strong, footer, _ := backgroundWorkDetail(recentLines)
+	return footer && !strong && !dockShowsAgents(recentLines)
+}
+
+// backgroundWorkDetail is backgroundWork with the agent evidence split in two: strong
+// (spinner line or summary line naming this lead's agents) and footer (the status-bar
+// counter alone).
+func backgroundWorkDetail(recentLines []string) (strongAgents, footerAgents, shells bool) {
 	n := min(6, len(recentLines))
 	summarySeen := false
 	for _, line := range recentLines[:n] {
 		t := strings.TrimSpace(line)
 		if waitingBgAgentsRe.MatchString(t) {
-			agents = true
+			strongAgents = true
 			continue
 		}
 		if doneStampRe.MatchString(t) {
@@ -2758,7 +2833,7 @@ func backgroundWork(recentLines []string) (agents, shells bool) {
 					if strings.HasPrefix(m[2], "shell") {
 						shells = true
 					} else {
-						agents = true
+						strongAgents = true
 					}
 				}
 			}
@@ -2773,11 +2848,11 @@ func backgroundWork(recentLines []string) (agents, shells bool) {
 			if strings.HasPrefix(m[2], "shell") {
 				shells = true
 			} else {
-				agents = true
+				footerAgents = true
 			}
 		}
 	}
-	return agents, shells
+	return strongAgents, footerAgents, shells
 }
 
 // dockShowsAgents reports whether the expanded background-agents dock (◯ rows) is on screen.

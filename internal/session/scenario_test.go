@@ -82,6 +82,9 @@ type Scenario struct {
 	Agent  agent.Type // empty = Claude (the default status path)
 	Events []ScenarioEvent
 	Checks []ScenarioCheck
+	// SubagentsActive stubs "this session has a subagent writing its transcript";
+	// nil leaves the real lookup, which answers true for a session without a transcript.
+	SubagentsActive func() bool
 }
 
 // --- Replay engine ---
@@ -103,13 +106,14 @@ func runScenario(t *testing.T, sc Scenario) {
 	convActive := false
 	claudeWaiting := ""
 	s := &Session{
-		ID:              "test-scenario",
-		Title:           sc.Name,
-		Status:          StatusStarting,
-		Agent:           sc.Agent,
-		paneCapturer:    mock,
-		convActiveFn:    func() bool { return convActive },
-		claudeWaitingFn: func() string { return claudeWaiting },
+		ID:                "test-scenario",
+		Title:             sc.Name,
+		Status:            StatusStarting,
+		Agent:             sc.Agent,
+		paneCapturer:      mock,
+		convActiveFn:      func() bool { return convActive },
+		claudeWaitingFn:   func() string { return claudeWaiting },
+		subagentsActiveFn: sc.SubagentsActive,
 	}
 
 	// Build sorted timeline.
