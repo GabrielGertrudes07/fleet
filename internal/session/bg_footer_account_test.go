@@ -67,8 +67,7 @@ func TestScenarioWaitingLineStaysRunningWithoutSubagentFiles(t *testing.T) {
 // The real lookup: a recent subagent transcript counts, an old or absent one does not,
 // and a session whose transcript can't be found keeps the old pinned behaviour.
 func TestSubagentsActiveWithinReadsTranscriptDir(t *testing.T) {
-	cfg := t.TempDir()
-	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+	t.Setenv("HOME", t.TempDir()) // transcript lookup is HOME-based; never touch the real ~/.claude
 	s := &Session{ID: "x", Agent: "claude", ClaudeSessionID: "abc", ProjectPath: "/tmp/proj-subagents-test"}
 
 	if !s.subagentsActiveWithin(time.Minute) {
