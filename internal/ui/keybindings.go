@@ -39,6 +39,7 @@ var allKeyBindings = []KeyBinding{
 	{Key: "F", Desc: "Fork to worktree", Section: "session"},
 	{Key: "d", BarKey: "d", BarDesc: "Del", Desc: "Delete session / repo / worktree", Section: "session"},
 	{Key: "u", Desc: "Undo delete", Section: "session"},
+	{Key: "U", Desc: "Reopen last closed session", Section: "session"},
 	{Key: "r", BarKey: "r", BarDesc: "Restart", Desc: "Restart session", Section: "session"},
 	{Key: "@", Desc: "Move session to another Claude account", Section: "session"},
 	{Key: "R", Desc: "Rename session", Section: "session"},
